@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ChatGPT 개선 스크립트
 // @namespace    naegyein.local
-// @version      0.16.1
+// @version      0.16.2
 // @description  ChatGPT 대화 폭 조절, 안전 상태 머신 기반 추론 모델 고정, 새 채팅·사이드바/탐색 메뉴 링크 복원. 설정은 Tampermonkey 메뉴에서 엽니다.
 // @homepageURL  https://github.com/NAEGYEIN/chatgpt-tweaks
 // @supportURL   https://github.com/NAEGYEIN/chatgpt-tweaks/issues
@@ -21,7 +21,7 @@
 
   // Keep existing CSS and setting keys compatible with in-place upgrades.
   const APP = 'cgpui';
-  const VERSION = '0.16.1';
+  const VERSION = '0.16.2';
   const STORE_KEYS = {
     settings: 'cgpui.settings.v1',
     bindings: 'cgpui.bindings.v1',
