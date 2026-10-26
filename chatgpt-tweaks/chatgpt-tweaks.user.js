@@ -67,6 +67,7 @@
   const projectChatOverlays = new Map();
   const diagMenus = Object.create(null);
   let currentSurface = 'unknown';
+  let surfaceSettleTimer = 0;
 
   function clone(v) { return JSON.parse(JSON.stringify(v)); }
 
@@ -1215,6 +1216,15 @@
     return setSurface(detectSurface({allowDefault}), reason);
   }
 
+  function scheduleSurfaceSettle(reason, fallback = 'chat', delay = 160) {
+    clearTimeout(surfaceSettleTimer);
+    surfaceSettleTimer = setTimeout(() => {
+      surfaceSettleTimer = 0;
+      const detected = detectSurface({allowDefault:false});
+      setSurface(detected === 'unknown' ? fallback : detected, reason);
+    }, delay);
+  }
+
   function normalizedChatMaxWidth() {
     const raw = Number(state.settings.chatMaxWidth);
     if (!Number.isFinite(raw)) return 1400;
@@ -1843,7 +1853,8 @@
 
   function start() {
     setupCrossTabSync();
-    refreshSurface('dom-ready', true);
+    refreshSurface('dom-ready', false);
+    if (currentSurface === 'unknown') scheduleSurfaceSettle('dom-ready-fallback', 'chat', 180);
     applyAll();
     const observer = new MutationObserver(processMutations);
     observer.observe(document.documentElement, {childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style', 'data-state', 'data-active', 'aria-selected', 'aria-pressed', 'aria-checked', 'aria-hidden', 'open']});
@@ -1852,11 +1863,24 @@
     addEventListener('resize', syncOverlayPositions, {passive: true});
     addEventListener('scroll', syncOverlayPositions, {capture: true, passive: true});
     addEventListener('popstate', () => { refreshSurface('popstate', false); scheduleOverlay(); });
-    addEventListener('pageshow', () => { refreshSurface('pageshow', true); scheduleOverlay(); });
+    addEventListener('pageshow', () => {
+      refreshSurface('pageshow', false);
+      if (currentSurface === 'unknown') scheduleSurfaceSettle('pageshow-fallback', 'chat', 180);
+      scheduleOverlay();
+    });
     // Sidebar expansion uses transitions that do not necessarily resize the window.
     document.addEventListener('click', e => {
       const requestedSurface = clickedSurfaceControl(e.target);
-      if (requestedSurface) setSurface(requestedSurface, 'trusted-mode-click');
+      if (requestedSurface === 'work') {
+        clearTimeout(surfaceSettleTimer);
+        surfaceSettleTimer = 0;
+        setSurface('work', 'trusted-mode-click');
+      } else if (requestedSurface === 'chat') {
+        // Fail closed while React replaces the Work surface. Model lock and
+        // overlays only resume after the Chat switcher/DOM has settled.
+        setSurface('unknown', 'trusted-mode-click-pending');
+        scheduleSurfaceSettle('trusted-mode-click-settled', 'chat', 140);
+      }
       if (!isChatSurface()) return;
       if (e.target?.closest?.(NAV_SELECTOR) || e.target?.closest?.(EXPLORE_SELECTOR)) {
         requestAnimationFrame(() => { syncNewChatOverlay(); syncProjectChatOverlays(); ensureProjectChatOverlays(); ensureMenuOverlays(); });
