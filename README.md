@@ -8,7 +8,7 @@
 | --- | --- | --- |
 | [chatgpt-tweaks](./chatgpt-tweaks/) | Active | ChatGPT 웹 UI 개선 스크립트. 현재 v0.16.3. |
 | [instagram-tweaks](./instagram-tweaks/) | Archived / FAIL | Instagram 웹 보조 스크립트. v1.1.1 정리본 · 기존 실사용 실패 후 개발 종료. 소스 보존용이며 사용 권장하지 않음. |
-| [DCInside-Optimizer](./DCInside-Optimizer/) | Current | DCInside 레이아웃 보정·클릭 방해 제거·갤러리 즐겨찾기·이미지 댓글 숨김. 현재 v1.3.1. |
+| [DCInside-tweaks](./DCInside-tweaks/) | Current | DCInside 레이아웃 보정·클릭 방해 제거·갤러리 즐겨찾기·이미지 댓글 숨김. 현재 v1.3.2. |
 
 ## 저장소 원칙
 
@@ -23,6 +23,6 @@
 - 저장소: `NAEGYEIN/Personal-Scripts`
 - ChatGPT Tweaks: `chatgpt-tweaks/`
 - Instagram Tweaks: `instagram-tweaks/`
-- DCInside Optimizer: `DCInside-Optimizer/`
+- DCInside Tweaks: `DCInside-tweaks/`
 
 각 프로젝트의 `.user.js`와 `.meta.js`는 해당 프로젝트 폴더 안에서 관리한다.
