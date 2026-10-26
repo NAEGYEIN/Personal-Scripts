@@ -1785,10 +1785,28 @@
 
   const NAV_SELECTOR = 'nav,aside,header,[data-testid*="sidebar" i],[data-testid*="navigation" i]';
   const EXPLORE_SELECTOR = '[role="menu"],[role="menuitem"],[data-radix-popper-content-wrapper],[data-testid*="popover" i],[data-side]';
+  const SURFACE_HOST_SELECTOR = 'header,[role="tablist"],[role="radiogroup"],[data-testid*="mode" i],[data-testid*="experience" i],[data-testid*="surface" i]';
   const scheduleOverlay = debounce(() => { if (isChatSurface()) ensureLinkOverlays(); }, 110);
 
-  // Watch navigation only. Streaming messages need no processing.
+  function mutationsMayChangeSurface(mutations) {
+    for (const m of mutations) {
+      const host = m.target?.nodeType === 1 ? m.target : m.target?.parentElement;
+      if (host?.closest?.(SURFACE_HOST_SELECTOR)) return true;
+      if (m.type !== 'childList' || host?.closest?.('#thread,#thread-bottom-container')) continue;
+      for (const node of m.addedNodes) {
+        if (node.nodeType !== 1 || isOwnedNode(node)) continue;
+        if (node.matches?.(SURFACE_CONTROL_SELECTOR) && surfaceFromControl(node)) return true;
+        for (const control of node.querySelectorAll?.(SURFACE_CONTROL_SELECTOR) || []) {
+          if (surfaceFromControl(control) && isLikelySurfaceSwitcherControl(control)) return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  // Watch navigation and the Chat/Work switcher only. Streaming messages need no processing.
   function processMutations(mutations) {
+    if (mutationsMayChangeSurface(mutations)) refreshSurface('surface-mutation', false);
     if (!isChatSurface()) return;
     for (const m of mutations) {
       if (isOwnedNode(m.target)) continue;
@@ -1826,7 +1844,7 @@
     refreshSurface('dom-ready', true);
     applyAll();
     const observer = new MutationObserver(processMutations);
-    observer.observe(document.documentElement, {childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style', 'data-state', 'aria-hidden', 'open']});
+    observer.observe(document.documentElement, {childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style', 'data-state', 'data-active', 'aria-selected', 'aria-pressed', 'aria-checked', 'aria-hidden', 'open']});
     modelLockController.startDom();
     const syncOverlayPositions = () => { if (!isChatSurface()) return; syncNewChatOverlay(); syncProjectChatOverlays(); syncMenuOverlays(); };
     addEventListener('resize', syncOverlayPositions, {passive: true});
