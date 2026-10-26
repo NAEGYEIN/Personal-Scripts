@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.16.3 — 2026-10-26
+
+- 저장소 이름을 `NAEGYEIN/Personal-Scripts` 기준으로 갱신.
+- canonical userscript/meta 경로를 `chatgpt-tweaks/` 하위로 이전.
+- 기존 루트 자동 업데이트 경로에서 v0.16.3을 감지할 수 있도록 호환 파일 유지.
+- 기능 코드·설정 키는 v0.16.2와 동일.
+
 ## 0.16.2 — 2026-10-25
 
 - 자동 업데이트 검증용 배포.
