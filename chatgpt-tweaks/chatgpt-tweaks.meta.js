@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         ChatGPT 개선 스크립트
 // @namespace    naegyein.local
-// @version      0.16.4
-// @description  ChatGPT 대화 폭 조절, 안전 상태 머신 기반 추론 모델 고정, 새 채팅·사이드바/탐색 메뉴 링크 복원. 설정은 Tampermonkey 메뉴에서 엽니다.
+// @version      0.17.0
+// @description  ChatGPT Chat 전용 UI 개선: 대화 폭, 안전 모델 고정, 새 채팅·프로젝트 대화 시작·사이드바 링크 보완. Work에서는 비활성화됩니다.
 // @homepageURL  https://github.com/NAEGYEIN/Personal-Scripts
 // @supportURL   https://github.com/NAEGYEIN/Personal-Scripts/issues
 // @updateURL    https://raw.githubusercontent.com/NAEGYEIN/Personal-Scripts/main/chatgpt-tweaks/chatgpt-tweaks.meta.js
