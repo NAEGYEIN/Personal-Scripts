@@ -4,9 +4,10 @@
 
 ## 현재 기준본
 
-- 최신 배포: **v0.18.1**
-- 기능 기준본: **v0.18.1 (2026-10-27)**
-- v0.18.1은 붙여넣기 가로채기를 document-start의 window capture로 앞당기고 event target·active element·selection 기반 composer 탐지를 추가한다.
+- 최신 배포: **v0.18.2**
+- 기능 기준본: **v0.18.2 (2026-10-27)**
+- v0.18.2는 자체 추측 구현을 제거하고 검증된 MIT ChatGPT userscript/extension 패턴으로 clipboard interception과 file-input 주입을 교체한다.
+- v0.18.1은 붙여넣기 가로채기를 document-start의 window capture로 앞당기고 event target·active element·selection 기반 composer 탐지를 추가했으나 사용자 Brave 실기에서 FAIL.
 - v0.18.0은 Chat 입력창에서 붙여넣은 이미지·파일을 메모리 ZIP으로 묶어 첨부하는 실험 기능을 추가한다. 일반 텍스트 붙여넣기는 그대로 유지한다.
 - v0.17.0은 Chat/Work 모드 분리, 프로젝트 우측 대화 시작 링크 보완, 동적 프로젝트 정리와 DOM 감시 최적화를 포함한다.
 - v0.16.4는 자동 업데이트 테스트용 패치 버전이며 기능 코드는 v0.16.3과 동일하다.
@@ -50,6 +51,10 @@ canonical userscript:
 ## 키보드 / 한·영
 
 모델 고정 컨트롤러는 키보드 이벤트를 합성하지 않는다. 설정창·직접 지정 모드의 `Escape` 처리 외 한/영(`HangulMode`)을 가로채는 기능은 없다.
+
+## 외부 구현 참고
+
+클립보드 ZIP 첨부 기능은 MIT 라이선스의 `Soluna-Angelito/chatgpt-conversation-exporter` 및 `skranz/chatgpt_clipboard`의 검증된 ChatGPT 이벤트/업로드 패턴을 참고·변형했다. 저작권 및 MIT 고지는 `THIRD-PARTY.md`에 보존한다.
 
 ## 라이선스
 
