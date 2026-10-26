@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         ChatGPT 개선 스크립트
 // @namespace    naegyein.local
-// @version      0.16.4
-// @description  ChatGPT 대화 폭 조절, 안전 상태 머신 기반 추론 모델 고정, 새 채팅·사이드바/탐색 메뉴 링크 복원. 설정은 Tampermonkey 메뉴에서 엽니다.
+// @version      0.17.0
+// @description  ChatGPT Chat 전용 UI 개선: 대화 폭, 안전 모델 고정, 새 채팅·프로젝트 대화 시작·사이드바 링크 보완. Work에서는 비활성화됩니다.
 // @homepageURL  https://github.com/NAEGYEIN/Personal-Scripts
 // @supportURL   https://github.com/NAEGYEIN/Personal-Scripts/issues
 // @updateURL    https://raw.githubusercontent.com/NAEGYEIN/Personal-Scripts/main/chatgpt-tweaks/chatgpt-tweaks.meta.js
@@ -21,7 +21,7 @@
 
   // Keep existing CSS and setting keys compatible with in-place upgrades.
   const APP = 'cgpui';
-  const VERSION = '0.16.4';
+  const VERSION = '0.17.0';
   const STORE_KEYS = {
     settings: 'cgpui.settings.v1',
     bindings: 'cgpui.bindings.v1',
@@ -43,8 +43,10 @@
   let picker = null;
   let previousFocus = null;
   const diag = {
+    surface: 'unknown',
     newChatTarget: false,
     newChatOverlay: false,
+    projectChatTargets: 0,
     modelLock: 'OFF',
     modelTrigger: '미검사',
     modelLastApplied: null,
@@ -62,7 +64,9 @@
    {id: 'canva', label: 'Canva', names: ['Canva'], path: '/?hints=canva', explore: true},
  ];
   const menuOverlays = new Map();
+  const projectChatOverlays = new Map();
   const diagMenus = Object.create(null);
+  let currentSurface = 'unknown';
 
   function clone(v) { return JSON.parse(JSON.stringify(v)); }
 
@@ -188,7 +192,7 @@
   }
 
   function fingerprint(el, type) {
-    el = normalizeInteractive(el, type);
+    el = normalizeInteractive(el);
     if (!el) return null;
     const r = el.getBoundingClientRect();
     return {
@@ -228,13 +232,13 @@
   function resolveBinding(name, type) {
     const fp = state.bindings[name];
     if (!fp) return null;
-    const pool = candidatePool(type);
+    const pool = candidatePool();
     let best = null, bestScore = 0;
     for (const el of pool) {
       const score = scoreFingerprint(el, fp);
       if (score > bestScore) { best = el; bestScore = score; }
     }
-    return bestScore >= 30 ? normalizeInteractive(best, type) : null;
+    return bestScore >= 30 ? normalizeInteractive(best) : null;
   }
 
   function semanticBlob(el) {
@@ -244,9 +248,110 @@
     ].filter(Boolean).join(' | ').toLowerCase();
   }
 
+  const SURFACE_CONTROL_SELECTOR = 'button,[role="tab"],[role="radio"],[role="menuitemradio"],[aria-pressed],[aria-selected],[aria-checked],[data-state]';
+  const SURFACE_LABELS = {
+    chat: new Set(['chat', '채팅', '챗']),
+    work: new Set(['work', '워크', '작업']),
+  };
+
+  function normalizedSurfaceLabel(value) {
+    return String(value || '').replace(/\s+/g, ' ').trim().toLowerCase();
+  }
+
+  function surfaceFromLabel(value) {
+    const label = normalizedSurfaceLabel(value);
+    if (!label) return null;
+    if (SURFACE_LABELS.chat.has(label)) return 'chat';
+    if (SURFACE_LABELS.work.has(label)) return 'work';
+    return null;
+  }
+
+  function surfaceFromControl(el) {
+    if (!el) return null;
+    for (const value of [el.getAttribute('aria-label'), el.getAttribute('title'), textOf(el)]) {
+      const surface = surfaceFromLabel(value);
+      if (surface) return surface;
+    }
+    return null;
+  }
+
+  function controlHasSelectedState(el) {
+    const state = String(el?.getAttribute?.('data-state') || '').toLowerCase();
+    return el?.getAttribute?.('aria-selected') === 'true'
+      || el?.getAttribute?.('aria-pressed') === 'true'
+      || el?.getAttribute?.('aria-checked') === 'true'
+      || el?.getAttribute?.('data-active') === 'true'
+      || ['active', 'on', 'checked', 'selected'].includes(state);
+  }
+
+  function isLikelySurfaceSwitcherControl(el) {
+    if (!el) return false;
+    const meta = [
+      el.id || '',
+      el.getAttribute('data-testid') || '',
+      el.getAttribute('data-slot') || '',
+      el.getAttribute('name') || '',
+      el.getAttribute('role') || '',
+    ].join(' ').toLowerCase();
+    if (/(?:mode|experience|surface|chat[-_ ]?work|work[-_ ]?chat)/i.test(meta)) return true;
+
+    let host = el.parentElement;
+    for (let depth = 0; host && depth < 4; depth++, host = host.parentElement) {
+      const r = host.getBoundingClientRect?.();
+      if (r && (r.width > Math.max(900, innerWidth * 0.8) || r.height > 320)) break;
+      let hasChat = false, hasWork = false;
+      for (const control of host.querySelectorAll?.(SURFACE_CONTROL_SELECTOR) || []) {
+        const surface = surfaceFromControl(control);
+        if (surface === 'chat') hasChat = true;
+        else if (surface === 'work') hasWork = true;
+        if (hasChat && hasWork) return true;
+      }
+    }
+    return false;
+  }
+
+  function activeSurfaceFromDom() {
+    for (const el of document.querySelectorAll(SURFACE_CONTROL_SELECTOR)) {
+      if (!visible(el) || isOwnedNode(el)) continue;
+      const surface = surfaceFromControl(el);
+      if (!surface || !isLikelySurfaceSwitcherControl(el)) continue;
+      if (controlHasSelectedState(el)) return surface;
+      if (el.tagName === 'BUTTON' && el.hasAttribute('aria-haspopup') && !el.closest('[role="menu"],[role="listbox"]')) {
+        return surface;
+      }
+    }
+    return null;
+  }
+
+  function surfaceFromRoute() {
+    try {
+      const url = new URL(location.href);
+      if (/^\/work(?:\/|$)/i.test(url.pathname)) return 'work';
+      for (const key of ['mode', 'experience', 'surface']) {
+        const value = surfaceFromLabel(url.searchParams.get(key));
+        if (value) return value;
+      }
+    } catch {}
+    return null;
+  }
+
+  function detectSurface({allowDefault = false} = {}) {
+    return surfaceFromRoute() || activeSurfaceFromDom() || (allowDefault ? 'chat' : currentSurface);
+  }
+
+  function isChatSurface() {
+    return currentSurface === 'chat';
+  }
+
+  function clickedSurfaceControl(node) {
+    const el = node?.closest?.(SURFACE_CONTROL_SELECTOR);
+    if (!el || !isLikelySurfaceSwitcherControl(el)) return null;
+    return surfaceFromControl(el);
+  }
+
   function findNewChatAuto() {
     let best = null, bestScore = 0;
-    for (const el of candidatePool('button')) {
+    for (const el of candidatePool()) {
       const b = semanticBlob(el);
       const r = el.getBoundingClientRect();
       let s = 0;
@@ -451,7 +556,7 @@
 
   function findModelButtonAuto() {
     let best = null, bestScore = -Infinity;
-    for (const el of candidatePool('button')) {
+    for (const el of candidatePool()) {
       if (el.tagName !== 'BUTTON' && el.getAttribute('role') !== 'button') continue;
       const info = describeModelTrigger(el);
       if (info.thinkingOnly) continue;
@@ -522,7 +627,7 @@
       this.record('init', {routeKey: this.routeKey});
     }
 
-    enabled() { return normalizedModelLock() !== 'off'; }
+    enabled() { return isChatSurface() && normalizedModelLock() !== 'off'; }
 
     record(event, detail = {}) {
       const clean = {};
@@ -935,6 +1040,7 @@
     }
 
     onRouteMaybe(reason) {
+      refreshSurface(`route:${reason}`, false);
       const nextUrl = location.href;
       const nextKey = modelRouteKey(nextUrl);
       if (nextKey === this.routeKey) {
@@ -1074,6 +1180,39 @@
 
   const modelLockController = new ModelLockController();
 
+  function setSurface(next, reason = 'surface') {
+    if (!['chat', 'work', 'unknown'].includes(next)) return false;
+    if (next === currentSurface) {
+      diag.surface = next;
+      return false;
+    }
+    const previous = currentSurface;
+    currentSurface = next;
+    diag.surface = next;
+
+    if (next === 'work') {
+      modelLockController.cancel(`surface:${reason}`);
+      modelLockController.phase = 'surface-work';
+      modelLockController.setDiag('비활성 · Work', '비활성');
+      deactivateChatFeatures();
+    } else if (next === 'chat') {
+      injectStyles();
+      if (modelLockController.startedEarly) {
+        modelLockController.resetLifecycle(`surface:${reason}`, {resetInput:true});
+      }
+      if (document.body) applyAll();
+    } else {
+      modelLockController.cancel(`surface:${reason}`);
+      deactivateChatFeatures();
+    }
+    modelLockController.record('surface-change', {previous, next, reason});
+    return true;
+  }
+
+  function refreshSurface(reason = 'surface', allowDefault = false) {
+    return setSurface(detectSurface({allowDefault}), reason);
+  }
+
   function normalizedChatMaxWidth() {
     const raw = Number(state.settings.chatMaxWidth);
     if (!Number.isFinite(raw)) return 1400;
@@ -1088,7 +1227,7 @@
 
   function applyWideLayout() {
     let s = document.getElementById(`${APP}-wide-style`);
-    if (!state.settings.wideChat) {
+    if (!isChatSurface() || !state.settings.wideChat) {
       s?.remove();
       return;
     }
@@ -1156,7 +1295,7 @@
     const s = document.createElement('style');
     s.id = `${APP}-style`;
     s.textContent = `
-      #${APP}-newchat-overlay,.${APP}-menu-overlay{position:fixed;z-index:2147482996;display:none;background:transparent;text-decoration:none;cursor:pointer}
+      #${APP}-newchat-overlay,.${APP}-menu-overlay,.${APP}-project-chat-overlay{position:fixed;z-index:2147482996;display:none;background:transparent;text-decoration:none;cursor:pointer}
       #${APP}-backdrop{position:fixed;inset:0;z-index:2147483000;background:rgba(0,0,0,.3)}
       #${APP}-panel{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:2147483001;width:min(440px,calc(100vw - 28px));max-height:min(80vh,780px);display:flex;flex-direction:column;overflow:hidden;border:1px solid color-mix(in srgb,currentColor 18%,transparent);border-radius:14px;background:Canvas;color:CanvasText;box-shadow:0 16px 52px rgba(0,0,0,.25);font:13px/1.45 system-ui,sans-serif}
       .${APP}-head,.${APP}-row{display:flex;align-items:center;gap:8px}
@@ -1182,6 +1321,12 @@
   }
 
   function ensureNewChatOverlay() {
+    if (!isChatSurface()) {
+      document.getElementById(`${APP}-newchat-overlay`)?.remove();
+      overlayTarget = null;
+      diag.newChatTarget = diag.newChatOverlay = false;
+      return;
+    }
     let overlay = document.getElementById(`${APP}-newchat-overlay`);
     if (!overlay) {
       overlay = document.createElement('a');
@@ -1207,12 +1352,118 @@
 
   function syncNewChatOverlay() {
     const overlay = document.getElementById(`${APP}-newchat-overlay`);
-    if (!overlay || !state.settings.newChatLink || !overlayTarget || !visible(overlayTarget) || (overlayTarget.tagName === 'A' && overlayTarget.href)) {
+    if (!overlay || !isChatSurface() || !state.settings.newChatLink || !overlayTarget || !visible(overlayTarget) || (overlayTarget.tagName === 'A' && overlayTarget.href)) {
       if (overlay) overlay.style.display = 'none';
       return;
     }
     const r = overlayTarget.getBoundingClientRect();
     Object.assign(overlay.style, {display:'block', left:`${r.left}px`, top:`${r.top}px`, width:`${r.width}px`, height:`${r.height}px`});
+  }
+
+  function projectHrefFromAnchor(anchor) {
+    if (!anchor) return null;
+    const raw = anchor.getAttribute('href');
+    if (!raw) return null;
+    try {
+      const url = new URL(raw, location.href);
+      if (url.origin !== location.origin) return null;
+      if (!/^\/g\/g-p-[^/]+\/project\/?$/i.test(url.pathname)) return null;
+      return url.href;
+    } catch {
+      return null;
+    }
+  }
+
+  function projectHrefForTarget(target) {
+    const direct = projectHrefFromAnchor(target?.matches?.('a[href]') ? target : target?.closest?.('a[href]'));
+    if (direct) return direct;
+
+    let host = target?.parentElement;
+    for (let depth = 0; host && depth < 5; depth++, host = host.parentElement) {
+      const r = host.getBoundingClientRect?.();
+      if (r && (r.width > Math.min(720, innerWidth * 0.9) || r.height > 180)) break;
+      for (const anchor of host.querySelectorAll?.('a[href*="/g/g-p-"][href*="/project"]') || []) {
+        const href = projectHrefFromAnchor(anchor);
+        if (href) return href;
+      }
+    }
+    return null;
+  }
+
+  function isProjectChatTarget(el) {
+    if (!el || !visible(el) || isOwnedNode(el) || el.closest('#thread,#thread-bottom-container')) return false;
+    if (!projectHrefForTarget(el)) return false;
+    const blob = semanticBlob(el);
+    return /(?:대화\s*(?:시작|시작하기|만들기)|start\s+(?:a\s+)?chat|new\s+chat|create.*chat|project.*chat|チャットを開始)/i.test(blob);
+  }
+
+  function findProjectChatTargets() {
+    const out = [];
+    const seen = new Set();
+    for (const raw of document.querySelectorAll('a,button,[role="button"],[role="link"]')) {
+      const target = normalizeInteractive(raw);
+      if (!target || seen.has(target) || !isProjectChatTarget(target)) continue;
+      seen.add(target);
+      out.push(target);
+    }
+    return out;
+  }
+
+  function positionProjectChatOverlay(item) {
+    const {overlay, target} = item;
+    const href = projectHrefForTarget(target);
+    if (!isChatSurface() || !state.settings.newChatLink || !target?.isConnected || !visible(target) || !href) {
+      overlay.style.display = 'none';
+      return;
+    }
+    item.href = href;
+    overlay.href = href;
+    const r = target.getBoundingClientRect();
+    Object.assign(overlay.style, {display:'block', left:`${r.left}px`, top:`${r.top}px`, width:`${r.width}px`, height:`${r.height}px`});
+  }
+
+  function cleanupProjectChatOverlays(removeAll = false, liveTargets = null) {
+    for (const [target, item] of projectChatOverlays) {
+      if (!removeAll && target.isConnected && liveTargets?.has(target)) continue;
+      item.overlay.remove();
+      projectChatOverlays.delete(target);
+    }
+    if (removeAll) diag.projectChatTargets = 0;
+  }
+
+  function ensureProjectChatOverlays() {
+    if (!isChatSurface() || !state.settings.newChatLink) {
+      cleanupProjectChatOverlays(true);
+      return;
+    }
+    const targets = findProjectChatTargets();
+    const liveTargets = new Set(targets);
+    for (const target of targets) {
+      let item = projectChatOverlays.get(target);
+      if (!item) {
+        const overlay = document.createElement('a');
+        overlay.className = `${APP}-project-chat-overlay`;
+        overlay.setAttribute('aria-label', '프로젝트에서 대화 시작 (새 탭 열기 지원)');
+        overlay.title = '프로젝트에서 대화 시작 (새 탭 열기 지원)';
+        item = {overlay, target, href: null};
+        overlay.addEventListener('click', e => {
+          if (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+          const current = item.target;
+          if (!current?.isConnected) return;
+          e.preventDefault();
+          current.click();
+        });
+        document.body.appendChild(overlay);
+        projectChatOverlays.set(target, item);
+      }
+      positionProjectChatOverlay(item);
+    }
+    cleanupProjectChatOverlays(false, liveTargets);
+    diag.projectChatTargets = targets.length;
+  }
+
+  function syncProjectChatOverlays() {
+    for (const item of projectChatOverlays.values()) positionProjectChatOverlay(item);
   }
 
  function menuText(el) {
@@ -1286,7 +1537,7 @@
  }
 
  function ensureMenuOverlays() {
-   if (!state.settings.menuLinks) {
+   if (!isChatSurface() || !state.settings.menuLinks) {
      for (const {overlay} of menuOverlays.values()) overlay.style.display = 'none';
      for (const entry of MENU_LINKS) diagMenus[entry.id] = 'OFF';
      return;
@@ -1361,7 +1612,8 @@
 
   // Tampermonkey command opens a temporary modal; nothing is inserted into the sidebar.
   function openPanel() {
-    if (!document.body) return;
+    if (!document.body || !isChatSurface()) return;
+    injectStyles();
     if (panelOpen) { document.getElementById(`${APP}-panel`)?.focus(); return; }
     previousFocus = document.activeElement;
     const backdrop = document.createElement('div');
@@ -1405,7 +1657,7 @@
 
   function renderSettings() {
     return [
-      settingRow('newChatLink','새 채팅 표준 링크 복원','기존 새 채팅의 휠 클릭·Ctrl+클릭·우클릭 새 탭을 유지합니다.'),
+      settingRow('newChatLink','새 채팅·프로젝트 대화 링크 복원','기존 새 채팅과 프로젝트 우측 대화 시작 아이콘의 휠 클릭·Ctrl+클릭·우클릭 새 탭을 지원합니다.'),
        settingRow('menuLinks','사이드바·탐색 메뉴 새 탭','예약·라이브러리·플러그인·지도·이미지·GPT·사이트·Canva의 휠 클릭·제스처·Ctrl+클릭을 지원합니다.'),
       bindRow('newChat','새 채팅 버튼 직접 지정','bind-newchat','자동 탐지가 깨질 때 실제 새 채팅 버튼을 한 번 클릭해 위치를 기억시킵니다.'),
       `<div class="${APP}-item"><div class="${APP}-grow"><b>추론 모델 고정</b><div class="${APP}-muted">v0.16 상태 머신은 현재 모델을 먼저 읽어 목표 모델이면 0-click으로 종료합니다. 모델 변경이 필요한 경우에만 모델 UI를 한 번 열며, 5.6 High/Medium 같은 추론 수준 표시와 모델 선택을 구분합니다. / → /c 전환은 첫 전송 뒤 같은 작성 세션으로 취급해 입력 보호를 해제하지 않습니다. 입력/IME 시작 즉시 후속 조작을 중단하며, 키보드 이벤트·포커스·작성창은 조작하지 않습니다.</div></div><div class="${APP}-row" style="flex-wrap:wrap;margin-top:8px">${MODEL_LOCK_VALUES.map(value => `<button class="${APP}-btn" data-action="set-model-lock" data-model="${esc(value)}"${normalizedModelLock()===value?' style="font-weight:700;outline:2px solid color-mix(in srgb,currentColor 20%,transparent)"':''}>${value==='off'?'OFF':esc(value)}</button>`).join('')}<button class="${APP}-btn" data-action="apply-model-lock">지금 적용</button></div><div class="${APP}-muted" style="margin-top:6px">상태: ${esc(diag.modelLock)}</div></div>`,
@@ -1420,11 +1672,11 @@
       const r = el.getBoundingClientRect();
       return r.left < 650 && r.top < 260;
     }).slice(0, 40).map(el => ({fp: fingerprint(el, 'button'), blob: semanticBlob(el)}));
-    return {version: VERSION, url: location.href, lifecycle: {visibility: document.visibilityState, readyState: document.readyState}, modelLock: modelLockController.snapshot(), newChatAuto: fingerprint(findNewChatAuto(), 'button'), menuLinks: MENU_LINKS.map(item => ({label:item.label, status:diagMenus[item.id], href:menuOverlays.get(item.id)?.overlay.href || null})), bindings: state.bindings, topLeftClickables: clickables};
+    return {version: VERSION, url: location.href, surface: currentSurface, lifecycle: {visibility: document.visibilityState, readyState: document.readyState}, modelLock: modelLockController.snapshot(), newChatAuto: fingerprint(findNewChatAuto(), 'button'), projectChatTargets: findProjectChatTargets().map(el => ({target:fingerprint(el, 'button'), href:projectHrefForTarget(el)})), menuLinks: MENU_LINKS.map(item => ({label:item.label, status:diagMenus[item.id], href:menuOverlays.get(item.id)?.overlay.href || null})), bindings: state.bindings, topLeftClickables: clickables};
   }
 
   function renderDiagnostics() {
-    return `<div class="${APP}-item"><b>추론 모델 고정</b><div>대상: ${esc(normalizedModelLock())}</div><div>현재 판독: ${esc(modelLockController.currentModel || '미확인')}</div><div>선택 버튼: ${esc(diag.modelTrigger)}</div><div>상태: ${esc(diag.modelLock)}</div><div>마지막 동작: ${esc(modelLockController.lastAction)}</div><div>상태 머신: ${esc(modelLockController.phase)} · ${esc(document.visibilityState)} · ${esc(document.readyState)}</div><div>입력 보호: ${modelLockController.sessionTouched ? 'ON' : 'OFF'} · IME ${modelLockController.composing ? '조합 중' : '대기'} · 로그 ${modelLockController.events.length}</div></div><div class="${APP}-item"><b>새 채팅 링크</b><div>버튼 탐지: ${diag.newChatTarget ? 'PASS' : '미검출'}</div><div>표준 링크: ${diag.newChatOverlay ? 'PASS' : '미적용'}</div></div><div class="${APP}-item"><b>추가 메뉴 링크</b><div class="${APP}-muted">탐색 항목은 탐색 메뉴를 펼친 상태에서 검사합니다.</div>${MENU_LINKS.map(item => `<div>${esc(item.label)}: ${esc(diagMenus[item.id] || '미검사')}</div>`).join('')}</div><div class="${APP}-row"><button class="${APP}-btn" data-action="rescan">재검사</button><button class="${APP}-btn" data-action="copy-dom-report">DOM 보고서 복사</button></div>`;
+    return `<div class="${APP}-item"><b>현재 적용 모드</b><div>${esc(currentSurface === 'chat' ? 'Chat · 활성' : currentSurface === 'work' ? 'Work · 비활성' : '판별 대기')}</div></div><div class="${APP}-item"><b>추론 모델 고정</b><div>대상: ${esc(normalizedModelLock())}</div><div>현재 판독: ${esc(modelLockController.currentModel || '미확인')}</div><div>선택 버튼: ${esc(diag.modelTrigger)}</div><div>상태: ${esc(diag.modelLock)}</div><div>마지막 동작: ${esc(modelLockController.lastAction)}</div><div>상태 머신: ${esc(modelLockController.phase)} · ${esc(document.visibilityState)} · ${esc(document.readyState)}</div><div>입력 보호: ${modelLockController.sessionTouched ? 'ON' : 'OFF'} · IME ${modelLockController.composing ? '조합 중' : '대기'} · 로그 ${modelLockController.events.length}</div></div><div class="${APP}-item"><b>새 채팅 링크</b><div>버튼 탐지: ${diag.newChatTarget ? 'PASS' : '미검출'}</div><div>표준 링크: ${diag.newChatOverlay ? 'PASS' : '미적용'}</div><div>프로젝트 대화 시작: ${diag.projectChatTargets}개</div></div><div class="${APP}-item"><b>추가 메뉴 링크</b><div class="${APP}-muted">탐색 항목은 탐색 메뉴를 펼친 상태에서 검사합니다.</div>${MENU_LINKS.map(item => `<div>${esc(item.label)}: ${esc(diagMenus[item.id] || '미검사')}</div>`).join('')}</div><div class="${APP}-row"><button class="${APP}-btn" data-action="rescan">재검사</button><button class="${APP}-btn" data-action="copy-dom-report">DOM 보고서 복사</button></div>`;
   }
 
   function handlePanelClick(e) {
@@ -1490,11 +1742,40 @@
     finally {e.target.value = '';}
   }
 
+  function deactivateChatFeatures() {
+    document.getElementById(`${APP}-wide-style`)?.remove();
+    document.getElementById(`${APP}-style`)?.remove();
+    document.getElementById(`${APP}-newchat-overlay`)?.remove();
+    overlayTarget = null;
+    for (const {overlay} of menuOverlays.values()) overlay.remove();
+    menuOverlays.clear();
+    cleanupProjectChatOverlays(true);
+    if (panelOpen) {
+      panelOpen = false;
+      document.getElementById(`${APP}-panel`)?.remove();
+      document.getElementById(`${APP}-backdrop`)?.remove();
+      document.removeEventListener('keydown', onPanelEscape, true);
+      previousFocus = null;
+    }
+    cancelPicker();
+  }
+
+  function ensureLinkOverlays() {
+    if (!isChatSurface()) return;
+    ensureNewChatOverlay();
+    ensureProjectChatOverlays();
+    ensureMenuOverlays();
+  }
+
   function applyAll() {
     if (!document.body) return;
+    if (!isChatSurface()) {
+      deactivateChatFeatures();
+      return;
+    }
+    injectStyles();
     applyWideLayout();
-    ensureNewChatOverlay();
-    ensureMenuOverlays();
+    ensureLinkOverlays();
    }
 
   function isOwnedNode(node) {
@@ -1504,10 +1785,11 @@
 
   const NAV_SELECTOR = 'nav,aside,header,[data-testid*="sidebar" i],[data-testid*="navigation" i]';
   const EXPLORE_SELECTOR = '[role="menu"],[role="menuitem"],[data-radix-popper-content-wrapper],[data-testid*="popover" i],[data-side]';
-  const scheduleOverlay = debounce(() => { ensureNewChatOverlay(); ensureMenuOverlays(); }, 110);
+  const scheduleOverlay = debounce(() => { if (isChatSurface()) ensureLinkOverlays(); }, 110);
 
   // Watch navigation only. Streaming messages need no processing.
   function processMutations(mutations) {
+    if (!isChatSurface()) return;
     for (const m of mutations) {
       if (isOwnedNode(m.target)) continue;
       const host = m.target.nodeType === 1 ? m.target : m.target.parentElement;
@@ -1535,26 +1817,30 @@
   }
 
   function startEarly() {
+    refreshSurface('document-start', false);
     modelLockController.startEarly();
   }
 
   function start() {
-    injectStyles();
     setupCrossTabSync();
+    refreshSurface('dom-ready', true);
     applyAll();
     const observer = new MutationObserver(processMutations);
     observer.observe(document.documentElement, {childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style', 'data-state', 'aria-hidden', 'open']});
     modelLockController.startDom();
-    const syncOverlayPositions = () => { syncNewChatOverlay(); syncMenuOverlays(); };
+    const syncOverlayPositions = () => { if (!isChatSurface()) return; syncNewChatOverlay(); syncProjectChatOverlays(); syncMenuOverlays(); };
     addEventListener('resize', syncOverlayPositions, {passive: true});
     addEventListener('scroll', syncOverlayPositions, {capture: true, passive: true});
-    addEventListener('popstate', scheduleOverlay);
-    addEventListener('pageshow', scheduleOverlay);
+    addEventListener('popstate', () => { refreshSurface('popstate', false); scheduleOverlay(); });
+    addEventListener('pageshow', () => { refreshSurface('pageshow', true); scheduleOverlay(); });
     // Sidebar expansion uses transitions that do not necessarily resize the window.
     document.addEventListener('click', e => {
+      const requestedSurface = clickedSurfaceControl(e.target);
+      if (requestedSurface) setSurface(requestedSurface, 'trusted-mode-click');
+      if (!isChatSurface()) return;
       if (e.target?.closest?.(NAV_SELECTOR) || e.target?.closest?.(EXPLORE_SELECTOR)) {
-        requestAnimationFrame(() => { syncNewChatOverlay(); ensureMenuOverlays(); });
-        setTimeout(ensureMenuOverlays, 260);
+        requestAnimationFrame(() => { syncNewChatOverlay(); syncProjectChatOverlays(); ensureProjectChatOverlays(); ensureMenuOverlays(); });
+        setTimeout(ensureLinkOverlays, 260);
       }
     }, true);
     console.info(`[ChatGPT 개선 스크립트] v${VERSION} started`);
