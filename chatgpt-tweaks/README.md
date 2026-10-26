@@ -4,9 +4,10 @@
 
 ## 현재 기준본
 
-- 최신 배포: **v0.18.2**
-- 기능 기준본: **v0.18.2 (2026-10-27)**
-- v0.18.2는 자체 추측 구현을 제거하고 검증된 MIT ChatGPT userscript/extension 패턴으로 clipboard interception과 file-input 주입을 교체한다.
+- 최신 배포: **v0.18.3**
+- 기능 기준본: **v0.18.3 (2026-10-27)**
+- v0.18.3은 Tampermonkey 공식 `@sandbox raw`로 MAIN_WORLD 실행을 강제하고 clipboard 기능에서 자체 Chat/Work 상태 판정을 제거해 실제 composer 존재 여부만으로 동작한다.
+- v0.18.2는 자체 추측 구현을 제거하고 검증된 MIT ChatGPT userscript/extension 패턴으로 clipboard interception과 file-input 주입을 교체했으나 Brave 실기에서 여전히 FAIL.
 - v0.18.1은 붙여넣기 가로채기를 document-start의 window capture로 앞당기고 event target·active element·selection 기반 composer 탐지를 추가했으나 사용자 Brave 실기에서 FAIL.
 - v0.18.0은 Chat 입력창에서 붙여넣은 이미지·파일을 메모리 ZIP으로 묶어 첨부하는 실험 기능을 추가한다. 일반 텍스트 붙여넣기는 그대로 유지한다.
 - v0.17.0은 Chat/Work 모드 분리, 프로젝트 우측 대화 시작 링크 보완, 동적 프로젝트 정리와 DOM 감시 최적화를 포함한다.

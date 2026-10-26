@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.18.3 — 2026-10-27
+
+- Tampermonkey 공식 문서 기준 Chromium MV3 기본 Content Script 방식은 진짜 `document-start`를 보장하지 않을 수 있음을 반영.
+- `@sandbox raw`를 명시해 가능한 경우 userscript를 ChatGPT 페이지의 MAIN_WORLD에서 실행하도록 강제.
+- clipboard paste listener는 sandbox/unsafeWindow 브리지 대신 실제 `window`에 직접 등록.
+- clipboard 기능에서 `currentSurface`/Work 상태 판정을 제거. `https://chatgpt.com/*` 안에서 실제 ChatGPT composer와 file input이 존재하는 경우만 동작.
+- v0.18.2에서 채택한 MIT 구현의 composedPath composer 탐지와 direct file-input 주입 패턴은 유지.
 ## 0.18.2 — 2026-10-27
 
 - v0.18.0/0.18.1의 자체 paste/composer/file-input 탐지 구현을 폐기하고 공개 MIT 구현을 기준으로 재작성.
