@@ -4,10 +4,11 @@
 
 ## 현재 기준본
 
-- 최신 배포: **v0.16.2**
+- 최신 배포: **v0.16.3**
 - 기능 기준본: **v0.16.0 (2026-10-21)**
-- v0.16.1은 v0.16.0의 기능 코드를 유지하고 GitHub/Tampermonkey 자동 업데이트 메타데이터만 추가한 배포 버전이다.
-- v0.16.2는 자동 업데이트 검증용 배포이며 v0.16.1과 기능 코드는 동일하다.
+- v0.16.1은 v0.16.0 기능을 유지하고 GitHub/Tampermonkey 자동 업데이트 메타데이터를 추가했다.
+- v0.16.2는 자동 업데이트 검증용 배포다.
+- v0.16.3은 저장소를 `NAEGYEIN/Personal-Scripts`로 변경한 뒤 canonical 배포 경로를 `chatgpt-tweaks/`로 이전하는 마이그레이션 배포다. 기능 동작은 v0.16.2와 동일하다.
 
 ## 주요 기능
 
@@ -20,15 +21,16 @@
 
 ## 설치
 
-현재 canonical 소스 경로:
+canonical userscript:
 
-`chatgpt-tweaks/chatgpt-tweaks.user.js`
-
-저장소 구조 이전 중에는 기존 설치의 자동 업데이트를 보호하기 위해 루트의 `chatgpt-tweaks.user.js` / `chatgpt-tweaks.meta.js` 호환 파일도 유지한다.
+`https://raw.githubusercontent.com/NAEGYEIN/Personal-Scripts/main/chatgpt-tweaks/chatgpt-tweaks.user.js`
 
 ## 자동 업데이트
 
-현재 v0.16.2 설치본은 기존 루트 경로의 `@updateURL` / `@downloadURL`을 사용한다. 저장소 이름을 `scripts`로 변경한 뒤 별도 마이그레이션 버전에서 새 canonical 경로로 전환한다.
+- `@updateURL https://raw.githubusercontent.com/NAEGYEIN/Personal-Scripts/main/chatgpt-tweaks/chatgpt-tweaks.meta.js`
+- `@downloadURL https://raw.githubusercontent.com/NAEGYEIN/Personal-Scripts/main/chatgpt-tweaks/chatgpt-tweaks.user.js`
+
+루트의 호환 파일은 기존 v0.16.2 이하 설치가 v0.16.3을 감지해 canonical 경로로 이동하도록 당분간 유지한다.
 
 ## 설정 유지
 
