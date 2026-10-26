@@ -14,7 +14,7 @@ This is the public userscript collection at `NAEGYEIN/Personal-Scripts`.
 - Preserve userscript identity fields such as `@name` and `@namespace` unless an intentional migration is approved.
 - Preserve existing storage keys during in-place updates unless a migration is explicitly implemented.
 - Do not break `@updateURL` or `@downloadURL`.
-- Treat root compatibility files as migration shims; do not remove them until existing installs have moved to the canonical project path.
+- Keep canonical `.user.js` and `.meta.js` files inside each project directory.
 - A version bump that changes only distribution metadata must not silently change feature behavior.
 
 ## Validation
