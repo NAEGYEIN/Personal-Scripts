@@ -1,11 +1,12 @@
-# AGENTS.md
+# Personal-Scripts AGENTS.md
 
 ## Repository scope
 
-This is the public userscript collection.
+This is the public userscript collection at `NAEGYEIN/Personal-Scripts`.
 
 - Keep one userscript project per top-level project directory.
 - Do not add browser extensions or web tools to this repository.
+- Use direct, recognizable project directory names.
 - Split a project into its own repository only when its size or release process justifies it.
 
 ## Release safety

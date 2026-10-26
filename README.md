@@ -1,4 +1,4 @@
-# Scripts
+# Personal-Scripts
 
 개인용 Tampermonkey userscript 공개 저장소.
 
@@ -6,8 +6,9 @@
 
 | 프로젝트 | 상태 | 설명 |
 | --- | --- | --- |
-| [chatgpt-tweaks](./chatgpt-tweaks/) | Active | ChatGPT 웹 UI 개선 스크립트. 현재 v0.16.2. |
-| [instagram-web-plus](./instagram-web-plus/) | Archived / FAIL | Instagram 웹 보조 스크립트. v1.1.0 실사용 실패 후 개발 종료. 소스 보존용이며 사용 권장하지 않음. |
+| [chatgpt-tweaks](./chatgpt-tweaks/) | Active | ChatGPT 웹 UI 개선 스크립트. 현재 v0.16.3. |
+| [instagram-tweaks](./instagram-tweaks/) | Archived / FAIL | Instagram 웹 보조 스크립트. v1.1.0 실사용 실패 후 개발 종료. 소스 보존용이며 사용 권장하지 않음. |
+| [DCInside-Optimizer](./DCInside-Optimizer/) | Current | DCInside 레이아웃 보정·클릭 방해 제거·갤러리 즐겨찾기·이미지 댓글 숨김. 현재 v1.3.0. |
 
 ## 저장소 원칙
 
@@ -17,12 +18,15 @@
 - 규모가 커져 독립 관리가 필요한 프로젝트만 별도 저장소로 분리한다.
 - 자동·모의 테스트와 실제 브라우저 실사용 판정을 구분한다.
 
-## 호환 파일
+## 배포 구조
 
-루트의 `chatgpt-tweaks.user.js`, `chatgpt-tweaks.meta.js`는 기존 Tampermonkey 설치의 자동 업데이트 경로를 끊지 않기 위한 **마이그레이션 호환 파일**이다.
+- 저장소: `NAEGYEIN/Personal-Scripts`
+- ChatGPT Tweaks canonical 경로: `chatgpt-tweaks/`
+- Instagram 보존 경로: `instagram-tweaks/`
+- DCInside Optimizer 경로: `DCInside-Optimizer/`
 
-정식 프로젝트 경로는 `chatgpt-tweaks/`이다. 기존 설치의 경로 이전이 끝나기 전에는 루트 호환 파일을 삭제하지 않는다.
+## ChatGPT Tweaks 호환 파일
 
-## 저장소 이름
+루트의 `chatgpt-tweaks.user.js`, `chatgpt-tweaks.meta.js`는 기존 Tampermonkey 설치가 이전 저장소/루트 배포 경로에서 새 canonical 경로로 이동할 수 있도록 유지하는 **마이그레이션 호환 파일**이다.
 
-최종 저장소 이름은 `NAEGYEIN/scripts`를 사용한다. 저장소 이름 변경 후 ChatGPT Tweaks의 자동 업데이트 URL을 새 canonical 경로로 이전한다.
+v0.16.3부터 실제 `@updateURL` / `@downloadURL`은 `NAEGYEIN/Personal-Scripts/main/chatgpt-tweaks/...`를 사용한다.
