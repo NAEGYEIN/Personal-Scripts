@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         ChatGPT 개선 스크립트
 // @namespace    naegyein.local
-// @version      0.17.0
-// @description  ChatGPT Chat 전용 UI 개선: 대화 폭, 안전 모델 고정, 새 채팅·프로젝트 대화 시작·사이드바 링크 보완. Work에서는 비활성화됩니다.
+// @version      0.18.0
+// @description  ChatGPT Chat 전용 UI 개선: 대화 폭, 안전 모델 고정, 링크 보완, 클립보드 이미지·파일 ZIP 첨부. Work에서는 비활성화됩니다.
 // @homepageURL  https://github.com/NAEGYEIN/Personal-Scripts
 // @supportURL   https://github.com/NAEGYEIN/Personal-Scripts/issues
 // @updateURL    https://raw.githubusercontent.com/NAEGYEIN/Personal-Scripts/main/chatgpt-tweaks/chatgpt-tweaks.meta.js
@@ -21,7 +21,7 @@
 
   // Keep existing CSS and setting keys compatible with in-place upgrades.
   const APP = 'cgpui';
-  const VERSION = '0.17.0';
+  const VERSION = '0.18.0';
   const STORE_KEYS = {
     settings: 'cgpui.settings.v1',
     bindings: 'cgpui.bindings.v1',
@@ -375,6 +375,268 @@
 
   function normalizedModelLock() {
     return MODEL_LOCK_VALUES.includes(state.settings.modelLock) ? state.settings.modelLock : 'off';
+  }
+
+
+  // Clipboard file/image paste -> in-memory ZIP attachment.
+  // Plain text copied from a page stays a normal paste; actual .txt files are ZIP-packed like other files.
+  const CLIPBOARD_ZIP_MAX_BYTES = 500 * 1024 * 1024;
+  const PROMPT_PASTE_SELECTOR = [
+    '#prompt-textarea',
+    '[data-testid="prompt-textarea"]',
+    '[data-testid="composer-input"]',
+    'form[data-type="unified-composer"] textarea',
+    'form[data-type="unified-composer"] [contenteditable="true"]',
+  ].join(',');
+  const MIME_EXTENSION = {
+    'image/png': '.png',
+    'image/jpeg': '.jpg',
+    'image/gif': '.gif',
+    'image/webp': '.webp',
+    'text/plain': '.txt',
+    'text/html': '.html',
+    'application/pdf': '.pdf',
+  };
+  const CRC32_TABLE = (() => {
+    const table = new Uint32Array(256);
+    for (let n = 0; n < 256; n++) {
+      let c = n;
+      for (let k = 0; k < 8; k++) c = (c & 1) ? (0xedb88320 ^ (c >>> 1)) : (c >>> 1);
+      table[n] = c >>> 0;
+    }
+    return table;
+  })();
+
+  function promptEditorFromPasteTarget(node) {
+    const el = node?.nodeType === 1 ? node : node?.parentElement;
+    return el?.closest?.(PROMPT_PASTE_SELECTOR) || null;
+  }
+
+  function clipboardFiles(data) {
+    if (!data) return [];
+    const files = [];
+    const seen = new Set();
+    const add = file => {
+      if (!file || typeof file.arrayBuffer !== 'function') return;
+      const key = [file.name || '', file.type || '', file.size || 0, file.lastModified || 0].join('\u0000');
+      if (seen.has(key)) return;
+      seen.add(key);
+      files.push(file);
+    };
+    for (const item of data.items || []) {
+      if (item.kind !== 'file') continue;
+      try { add(item.getAsFile()); } catch {}
+    }
+    for (const file of data.files || []) add(file);
+    return files;
+  }
+
+  function zipSafeName(name, index, type, used) {
+    const inferred = MIME_EXTENSION[String(type || '').toLowerCase()] || '';
+    let base = String(name || '').trim() || ('clipboard-' + (index + 1) + inferred);
+    base = base.replace(/[\u0000-\u001f<>:"/\\|?*]/g, '_').replace(/[. ]+$/g, '');
+    if (!base) base = 'clipboard-' + (index + 1) + inferred;
+    if (!/\.[a-z0-9]{1,10}$/i.test(base) && inferred) base += inferred;
+    const dot = base.lastIndexOf('.');
+    const stem = dot > 0 ? base.slice(0, dot) : base;
+    const ext = dot > 0 ? base.slice(dot) : '';
+    let candidate = base;
+    let suffix = 2;
+    while (used.has(candidate.toLowerCase())) candidate = stem + '-' + suffix++ + ext;
+    used.add(candidate.toLowerCase());
+    return candidate;
+  }
+
+  function crc32(bytes) {
+    let crc = 0xffffffff;
+    for (let i = 0; i < bytes.length; i++) crc = CRC32_TABLE[(crc ^ bytes[i]) & 0xff] ^ (crc >>> 8);
+    return (crc ^ 0xffffffff) >>> 0;
+  }
+
+  function zipDosDateTime(ms) {
+    const d = new Date(ms || Date.now());
+    const year = Math.min(2107, Math.max(1980, d.getFullYear()));
+    return {
+      time: ((d.getHours() & 0x1f) << 11) | ((d.getMinutes() & 0x3f) << 5) | ((d.getSeconds() >> 1) & 0x1f),
+      date: (((year - 1980) & 0x7f) << 9) | (((d.getMonth() + 1) & 0x0f) << 5) | (d.getDate() & 0x1f),
+    };
+  }
+
+  function setU16(view, offset, value) { view.setUint16(offset, value & 0xffff, true); }
+  function setU32(view, offset, value) { view.setUint32(offset, value >>> 0, true); }
+
+  async function buildClipboardZip(files) {
+    const encoder = new TextEncoder();
+    const usedNames = new Set();
+    const entries = [];
+    let totalBytes = 0;
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      totalBytes += Number(file.size) || 0;
+      if (totalBytes > CLIPBOARD_ZIP_MAX_BYTES) throw new Error('클립보드 파일 합계가 500MB를 초과합니다.');
+      const data = new Uint8Array(await file.arrayBuffer());
+      entries.push({
+        name: zipSafeName(file.name, i, file.type, usedNames),
+        nameBytes: null,
+        data,
+        crc: crc32(data),
+        modified: zipDosDateTime(file.lastModified),
+        offset: 0,
+      });
+    }
+    if (!entries.length) throw new Error('ZIP으로 묶을 파일이 없습니다.');
+
+    const localParts = [];
+    const centralParts = [];
+    let localOffset = 0;
+    for (const entry of entries) {
+      entry.nameBytes = encoder.encode(entry.name);
+      entry.offset = localOffset;
+
+      const local = new Uint8Array(30);
+      const lv = new DataView(local.buffer);
+      setU32(lv, 0, 0x04034b50);
+      setU16(lv, 4, 20);
+      setU16(lv, 6, 0x0800);
+      setU16(lv, 8, 0);
+      setU16(lv, 10, entry.modified.time);
+      setU16(lv, 12, entry.modified.date);
+      setU32(lv, 14, entry.crc);
+      setU32(lv, 18, entry.data.length);
+      setU32(lv, 22, entry.data.length);
+      setU16(lv, 26, entry.nameBytes.length);
+      setU16(lv, 28, 0);
+      localParts.push(local, entry.nameBytes, entry.data);
+      localOffset += local.length + entry.nameBytes.length + entry.data.length;
+
+      const central = new Uint8Array(46);
+      const cv = new DataView(central.buffer);
+      setU32(cv, 0, 0x02014b50);
+      setU16(cv, 4, 20);
+      setU16(cv, 6, 20);
+      setU16(cv, 8, 0x0800);
+      setU16(cv, 10, 0);
+      setU16(cv, 12, entry.modified.time);
+      setU16(cv, 14, entry.modified.date);
+      setU32(cv, 16, entry.crc);
+      setU32(cv, 20, entry.data.length);
+      setU32(cv, 24, entry.data.length);
+      setU16(cv, 28, entry.nameBytes.length);
+      setU16(cv, 30, 0);
+      setU16(cv, 32, 0);
+      setU16(cv, 34, 0);
+      setU16(cv, 36, 0);
+      setU32(cv, 38, 0);
+      setU32(cv, 42, entry.offset);
+      centralParts.push(central, entry.nameBytes);
+    }
+
+    const centralSize = centralParts.reduce((sum, part) => sum + part.length, 0);
+    const end = new Uint8Array(22);
+    const ev = new DataView(end.buffer);
+    setU32(ev, 0, 0x06054b50);
+    setU16(ev, 4, 0);
+    setU16(ev, 6, 0);
+    setU16(ev, 8, entries.length);
+    setU16(ev, 10, entries.length);
+    setU32(ev, 12, centralSize);
+    setU32(ev, 16, localOffset);
+    setU16(ev, 20, 0);
+
+    const stamp = (() => {
+      const d = new Date();
+      const pad = n => String(n).padStart(2, '0');
+      return d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate()) + '-' + pad(d.getHours()) + pad(d.getMinutes()) + pad(d.getSeconds());
+    })();
+    const blob = new Blob([...localParts, ...centralParts, end], {type: 'application/zip'});
+    return new File([blob], 'clipboard-' + stamp + '.zip', {type: 'application/zip', lastModified: Date.now()});
+  }
+
+  function composerRootFor(editor) {
+    return editor?.closest?.('form,[data-type="unified-composer"],[data-testid*="composer" i]') || editor?.parentElement || document.body;
+  }
+
+  function scoreUploadInput(input, root) {
+    if (!input || input.type !== 'file' || input.disabled || isOwnedNode(input)) return -Infinity;
+    const accept = String(input.accept || '').toLowerCase();
+    if (accept && /application\/json|\.json/.test(accept) && !/(image|pdf|text|doc|sheet|presentation|\*)/.test(accept)) return -Infinity;
+    const meta = [
+      input.id || '', input.name || '', input.getAttribute('data-testid') || '',
+      input.getAttribute('aria-label') || '', input.getAttribute('data-slot') || '',
+    ].join(' ').toLowerCase();
+    let score = 0;
+    if (root?.contains?.(input)) score += 220;
+    if (/(attach|attachment|upload|file|composer|prompt)/.test(meta)) score += 120;
+    if (input.multiple) score += 30;
+    if (!accept || /(image|pdf|text|doc|sheet|presentation|\*)/.test(accept)) score += 25;
+    return score;
+  }
+
+  function findChatUploadInput(editor) {
+    const root = composerRootFor(editor);
+    let best = null;
+    let bestScore = -Infinity;
+    for (const input of document.querySelectorAll('input[type="file"]')) {
+      const score = scoreUploadInput(input, root);
+      if (score > bestScore) { best = input; bestScore = score; }
+    }
+    return bestScore >= 25 ? best : null;
+  }
+
+  function injectFileInput(input, file) {
+    const transfer = new DataTransfer();
+    transfer.items.add(file);
+    try { input.value = ''; } catch {}
+    input.files = transfer.files;
+    input.dispatchEvent(new Event('input', {bubbles: true, composed: true}));
+    input.dispatchEvent(new Event('change', {bubbles: true, composed: true}));
+    return true;
+  }
+
+  function dispatchFileDrop(editor, file) {
+    const transfer = new DataTransfer();
+    transfer.items.add(file);
+    const target = composerRootFor(editor);
+    for (const type of ['dragenter', 'dragover', 'drop']) {
+      target.dispatchEvent(new DragEvent(type, {bubbles: true, cancelable: true, composed: true, dataTransfer: transfer}));
+    }
+    return true;
+  }
+
+  async function handleClipboardZipPaste(event) {
+    if (event.defaultPrevented || location.protocol !== 'https:' || location.hostname !== 'chatgpt.com' || !isChatSurface()) return;
+    const editor = promptEditorFromPasteTarget(event.target);
+    if (!editor || !event.clipboardData) return;
+
+    const files = clipboardFiles(event.clipboardData);
+    if (!files.length) return;
+
+    const totalBytes = files.reduce((sum, file) => sum + (Number(file.size) || 0), 0);
+    if (totalBytes > CLIPBOARD_ZIP_MAX_BYTES) {
+      toast('클립보드 파일 합계가 500MB를 넘어 ZIP 변환을 건너뜁니다.', 3500);
+      return;
+    }
+
+    const input = findChatUploadInput(editor);
+    const canDrop = typeof DataTransfer === 'function' && typeof DragEvent === 'function';
+    if (!input && !canDrop) {
+      toast('ChatGPT 첨부 입력을 찾지 못해 원래 붙여넣기를 유지합니다.', 3500);
+      return;
+    }
+
+    event.preventDefault();
+    event.stopImmediatePropagation();
+
+    try {
+      const zipFile = await buildClipboardZip(files);
+      const method = input ? (injectFileInput(input, zipFile), 'file-input') : (dispatchFileDrop(editor, zipFile), 'drop');
+      console.info('[ChatGPT 개선 스크립트] clipboard ZIP attachment dispatched', {
+        method, zip: zipFile.name, sourceCount: files.length, sourceBytes: totalBytes,
+      });
+    } catch (error) {
+      console.warn('[ChatGPT 개선 스크립트] clipboard ZIP attachment failed', error);
+      toast('클립보드 ZIP 생성 또는 첨부에 실패했습니다. 콘솔 로그를 확인하세요.', 4000);
+    }
   }
 
   const EDITOR_SELECTOR = '#prompt-textarea,textarea,input:not([type="button"]):not([type="submit"]):not([type="checkbox"]):not([type="radio"]),[contenteditable="true"],[role="textbox"]';
@@ -1853,6 +2115,7 @@
 
   function start() {
     setupCrossTabSync();
+    document.addEventListener('paste', handleClipboardZipPaste, true);
     refreshSurface('dom-ready', false);
     if (currentSurface === 'unknown') scheduleSurfaceSettle('dom-ready-fallback', 'chat', 180);
     applyAll();
