@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.17.0 — 2026-10-27
+
+- ChatGPT **Chat 모드 전용**으로 동작 범위를 제한하고 Work에서는 대화 폭 CSS, 모델 고정, 새 채팅·메뉴·프로젝트 링크 overlay를 해제.
+- Chat/Work 전환 컨트롤, 라우트, DOM 지연 마운트를 함께 판별하도록 surface lifecycle 추가.
+- 프로젝트 우측 **대화 시작** 아이콘을 프로젝트 canonical URL과 연결해 휠 클릭·Ctrl+클릭·우클릭 새 탭을 지원.
+- 프로젝트 생성·삭제·재정렬 시 현재 DOM을 재탐지하고 끊어진 target/overlay를 자동 정리.
+- 기존 `cgpui.settings.v1`, `cgpui.bindings.v1`, 모델 입력/IME 보호, 자동 업데이트 경로 유지.
+- 네비게이션·surface 관련 mutation만 재검사하고 대화 스트리밍 DOM은 계속 제외.
+- 사용되지 않던 일부 DOM helper 인자 전달을 정리.
+
+## 0.16.4 — 2026-10-26
+
+- 세 userscript 자동 업데이트 교차검증을 위한 패치 버전 상승.
+- ChatGPT Tweaks 기능 코드는 v0.16.3과 동일.
+
 ## 0.16.3 — 2026-10-26
 
 - 저장소 이름을 `NAEGYEIN/Personal-Scripts` 기준으로 갱신.
