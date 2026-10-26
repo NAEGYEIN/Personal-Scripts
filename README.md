@@ -1,56 +1,28 @@
-# ChatGPT Tweaks
+# Scripts
 
-개인용 ChatGPT 웹 UI 개선 Tampermonkey userscript.
+개인용 Tampermonkey userscript 공개 저장소.
 
-## 현재 기준본
+## 프로젝트
 
-- 최신 배포: **v0.16.2**
-- 기능 기준본: **v0.16.0 (2026-10-21)**
-- v0.16.1은 v0.16.0의 기능 코드를 유지하고 GitHub/Tampermonkey 자동 업데이트 메타데이터만 추가한 배포 버전이다.
+| 프로젝트 | 상태 | 설명 |
+| --- | --- | --- |
+| [chatgpt-tweaks](./chatgpt-tweaks/) | Active | ChatGPT 웹 UI 개선 스크립트. 현재 v0.16.2. |
+| [instagram-web-plus](./instagram-web-plus/) | Archived / FAIL | Instagram 웹 보조 스크립트. v1.1.0 실사용 실패 후 개발 종료. 소스 보존용이며 사용 권장하지 않음. |
 
-v0.16.2는 자동 업데이트 검증용 배포이며, v0.16.1과 기능 코드는 동일하다. 버전 표시만 증가했으며 기존 기능·설정 키·자동 업데이트 URL은 유지한다.
+## 저장소 원칙
 
-## 주요 기능
+- 이 저장소에는 공개 배포하는 **userscript만** 둔다.
+- 각 스크립트는 루트 바로 아래 독립 폴더로 관리한다.
+- 브라우저 확장 프로그램과 web tool은 이 저장소에 넣지 않는다.
+- 규모가 커져 독립 관리가 필요한 프로젝트만 별도 저장소로 분리한다.
+- 자동·모의 테스트와 실제 브라우저 실사용 판정을 구분한다.
 
-- 대화 영역 최대 폭 조절
-- 사용자 말풍선 최대 폭 조절
-- 안전 상태 머신 기반 모델 고정 (`GPT-6`, `GPT-5.6 Sol`)
-- 새 채팅 표준 링크 동작 보완
-- 사이드바·탐색 메뉴 새 탭 열기 보완
-- 설정 백업/복원 및 DOM 진단
+## 호환 파일
 
-## 설치
+루트의 `chatgpt-tweaks.user.js`, `chatgpt-tweaks.meta.js`는 기존 Tampermonkey 설치의 자동 업데이트 경로를 끊지 않기 위한 **마이그레이션 호환 파일**이다.
 
-Tampermonkey가 설치된 브라우저에서 아래 userscript를 한 번 설치한다.
+정식 프로젝트 경로는 `chatgpt-tweaks/`이다. 기존 설치의 경로 이전이 끝나기 전에는 루트 호환 파일을 삭제하지 않는다.
 
-`https://raw.githubusercontent.com/NAEGYEIN/chatgpt-tweaks/main/chatgpt-tweaks.user.js`
+## 저장소 이름
 
-기존 `ChatGPT 개선 스크립트`는 `@name`과 `@namespace`를 유지하므로 동일 스크립트의 업데이트로 처리된다.
-
-## 자동 업데이트
-
-- 버전 확인: `chatgpt-tweaks.meta.js`
-- 실제 설치/업데이트 파일: `chatgpt-tweaks.user.js`
-- 새 배포마다 `@version`을 증가시킨다.
-
-현재 메타데이터:
-
-- `@updateURL https://raw.githubusercontent.com/NAEGYEIN/chatgpt-tweaks/main/chatgpt-tweaks.meta.js`
-- `@downloadURL https://raw.githubusercontent.com/NAEGYEIN/chatgpt-tweaks/main/chatgpt-tweaks.user.js`
-
-## 설정 유지
-
-다음 저장 키를 계속 사용한다.
-
-- `cgpui.settings.v1`
-- `cgpui.bindings.v1`
-
-따라서 정상적인 인플레이스 업데이트에서는 기존 화면 폭, 모델 고정, 직접 지정 설정을 유지한다.
-
-## 키보드 / 한·영
-
-모델 고정 컨트롤러는 키보드 이벤트를 합성하지 않는다. 설정창·직접 지정 모드의 `Escape` 처리 외 한/영(`HangulMode`)을 가로채는 기능은 없다.
-
-## 라이선스
-
-별도 오픈소스 라이선스를 부여하지 않았다.
+최종 저장소 이름은 `NAEGYEIN/scripts`를 사용한다. 저장소 이름 변경 후 ChatGPT Tweaks의 자동 업데이트 URL을 새 canonical 경로로 이전한다.
