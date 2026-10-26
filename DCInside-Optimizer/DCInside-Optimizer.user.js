@@ -1,8 +1,12 @@
 // ==UserScript==
 // @name         DCInside-Optimizer
 // @namespace    local.dcinside.optimizer
-// @version      1.3.0
+// @version      1.3.1
 // @description  디시인사이드 레이아웃 보정 + 클릭 방해 제거 + 이름순 갤러리 즐겨찾기 + 이미지 댓글 숨김
+// @homepageURL  https://github.com/NAEGYEIN/Personal-Scripts/tree/main/DCInside-Optimizer
+// @supportURL   https://github.com/NAEGYEIN/Personal-Scripts/issues
+// @updateURL    https://raw.githubusercontent.com/NAEGYEIN/Personal-Scripts/main/DCInside-Optimizer/DCInside-Optimizer.meta.js
+// @downloadURL  https://raw.githubusercontent.com/NAEGYEIN/Personal-Scripts/main/DCInside-Optimizer/DCInside-Optimizer.user.js
 // @match        https://gall.dcinside.com/*
 // @grant        none
 // @run-at       document-start
@@ -78,7 +82,7 @@
        2. CLEANUP / 불필요 영역 제거
        ========================================================= */
 
-    /* Fucktimebest 기능: JS/MutationObserver 대신 CSS로 처리 */
+    /* 타임베스트/추천 영역은 JS/MutationObserver 대신 CSS로 처리 */
     .content_box.r_timebest,
     .content_box.r_dcmedia,
     .content_box.r_recommend {
@@ -87,7 +91,6 @@
 
     /* 기존 여백 제거 스크립트의 정리 기능 */
     .dcfoot,
-    footer.dcfoot,
     .gnb_list,
     .ad_bottom_list {
       display: none !important;
@@ -108,8 +111,7 @@
     .view_content_wrap .writing_view_box,
     .view_content_wrap .write_div,
     .view_content_wrap .write_div .imgwrap,
-    .view_content_wrap .write_div .ai_wrap,
-    .view_content_wrap .write_div div.ai_wrap {
+    .view_content_wrap .write_div .ai_wrap {
       max-width: 100% !important;
       min-width: 0 !important;
       box-sizing: border-box !important;
@@ -603,7 +605,7 @@
   }
 
   /* =========================================================
-     10. USABILITY JS / 즐겨찾기
+     11. USABILITY JS / 즐겨찾기
      ========================================================= */
 
   const FAVORITES_KEY = 'dcinside.optimizer.favorites.v1';

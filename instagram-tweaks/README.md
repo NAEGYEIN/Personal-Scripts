@@ -1,13 +1,20 @@
 # Instagram Tweaks
 
-> **Archived / FAIL — 사용 권장하지 않음**
+> **Archived / FAIL — 기존 실사용 판정 유지**
 
-보존 버전: **v1.1.0**
-
-기존 프로젝트명 `instagram-web-plus`를 저장소 구조상 더 직관적인 `instagram-tweaks`로 정리했다.
+현재 정리본: **v1.1.1**
 
 Instagram 웹의 영상 제어·자동재생 차단·화면 밖 영상 정지·음량/속도 기억·반복 해제·컬렉션 바로가기·게시물 링크 복사 등을 실험한 Tampermonkey userscript다.
 
-자동·모의 테스트에서는 통과한 항목이 있었지만 실제 Brave + Instagram 실사용에서 핵심 기능 신뢰성이 확보되지 않았고 UI 충돌도 확인되어 2026-10-12 개발을 종료했다.
+v1.1.1은 기존 v1.1.0의 저장 키와 핵심 동작을 유지하면서 코드 정리와 배포 메타데이터를 추가한 버전이다.
 
-이 폴더는 당시 v1.1.0 소스를 보존하기 위한 것이며 현재 배포/설치 대상으로 취급하지 않는다.
+## 설치
+
+`https://raw.githubusercontent.com/NAEGYEIN/Personal-Scripts/main/instagram-tweaks/instagram-tweaks.user.js`
+
+## 자동 업데이트
+
+- `@updateURL https://raw.githubusercontent.com/NAEGYEIN/Personal-Scripts/main/instagram-tweaks/instagram-tweaks.meta.js`
+- `@downloadURL https://raw.githubusercontent.com/NAEGYEIN/Personal-Scripts/main/instagram-tweaks/instagram-tweaks.user.js`
+
+기존 v1.1.0의 Brave + Instagram 실사용 FAIL 판정은 변경하지 않는다.
