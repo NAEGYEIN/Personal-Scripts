@@ -4,19 +4,21 @@
 
 ## 현재 기준본
 
-- 최신 배포: **v0.16.4**
-- 기능 기준본: **v0.16.0 (2026-10-21)**
-- v0.16.1은 v0.16.0 기능을 유지하고 GitHub/Tampermonkey 자동 업데이트 메타데이터를 추가했다.
-- v0.16.2는 자동 업데이트 검증용 배포다.
+- 최신 배포: **v0.17.0**
+- 기능 기준본: **v0.17.0 (2026-10-27)**
+- v0.17.0은 Chat/Work 모드 분리, 프로젝트 우측 대화 시작 링크 보완, 동적 프로젝트 정리와 DOM 감시 최적화를 포함한다.
 - v0.16.4는 자동 업데이트 테스트용 패치 버전이며 기능 코드는 v0.16.3과 동일하다.
-- v0.16.3은 저장소를 `NAEGYEIN/Personal-Scripts`로 변경한 뒤 canonical 배포 경로를 `chatgpt-tweaks/`로 이전하는 마이그레이션 배포다. 기능 동작은 v0.16.2와 동일하다.
+- v0.16.3은 저장소를 `NAEGYEIN/Personal-Scripts`로 변경한 뒤 canonical 배포 경로를 `chatgpt-tweaks/`로 이전한 마이그레이션 배포다.
 
 ## 주요 기능
 
+- **Chat 모드에서만** 동작하고 Work에서는 UI·모델 고정·링크 overlay를 비활성화
 - 대화 영역 최대 폭 조절
 - 사용자 말풍선 최대 폭 조절
 - 안전 상태 머신 기반 모델 고정 (`GPT-6`, `GPT-5.6 Sol`)
 - 새 채팅 표준 링크 동작 보완
+- 프로젝트 우측 **대화 시작** 아이콘의 휠 클릭·Ctrl+클릭·우클릭 새 탭 보완
+- 프로젝트 생성·삭제·재정렬 시 동적 재탐지 및 끊어진 overlay 자동 정리
 - 사이드바·탐색 메뉴 새 탭 열기 보완
 - 설정 백업/복원 및 DOM 진단
 
@@ -31,7 +33,7 @@ canonical userscript:
 - `@updateURL https://raw.githubusercontent.com/NAEGYEIN/Personal-Scripts/main/chatgpt-tweaks/chatgpt-tweaks.meta.js`
 - `@downloadURL https://raw.githubusercontent.com/NAEGYEIN/Personal-Scripts/main/chatgpt-tweaks/chatgpt-tweaks.user.js`
 
-루트의 호환 파일은 기존 v0.16.2 이하 설치가 v0.16.3을 감지해 canonical 경로로 이동하도록 당분간 유지한다.
+기존 루트 호환 파일은 canonical 경로 이전과 자동 업데이트 교차검증 완료 후 제거되었다. 현재 배포 기준은 위 `chatgpt-tweaks/` canonical 경로뿐이다.
 
 ## 설정 유지
 
