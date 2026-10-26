@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ChatGPT 개선 스크립트
 // @namespace    naegyein.local
-// @version      0.18.0
+// @version      0.18.1
 // @description  ChatGPT Chat 전용 UI 개선: 대화 폭, 안전 모델 고정, 링크 보완, 클립보드 이미지·파일 ZIP 첨부. Work에서는 비활성화됩니다.
 // @homepageURL  https://github.com/NAEGYEIN/Personal-Scripts
 // @supportURL   https://github.com/NAEGYEIN/Personal-Scripts/issues
@@ -21,7 +21,7 @@
 
   // Keep existing CSS and setting keys compatible with in-place upgrades.
   const APP = 'cgpui';
-  const VERSION = '0.18.0';
+  const VERSION = '0.18.1';
   const STORE_KEYS = {
     settings: 'cgpui.settings.v1',
     bindings: 'cgpui.bindings.v1',
@@ -412,6 +412,24 @@
     return el?.closest?.(PROMPT_PASTE_SELECTOR) || null;
   }
 
+  function visiblePromptEditor() {
+    const active = promptEditorFromPasteTarget(document.activeElement);
+    if (active && visible(active)) return active;
+
+    const selectionNode = document.getSelection?.()?.anchorNode || null;
+    const selected = promptEditorFromPasteTarget(selectionNode);
+    if (selected && visible(selected)) return selected;
+
+    const candidates = [...document.querySelectorAll(PROMPT_PASTE_SELECTOR)]
+      .filter(el => visible(el) && !isOwnedNode(el));
+    if (candidates.length === 1) return candidates[0];
+
+    return candidates.find(el => {
+      const root = composerRootFor(el);
+      return root?.contains?.(document.activeElement);
+    }) || null;
+  }
+
   function clipboardFiles(data) {
     if (!data) return [];
     const files = [];
@@ -604,9 +622,12 @@
   }
 
   async function handleClipboardZipPaste(event) {
-    if (event.defaultPrevented || location.protocol !== 'https:' || location.hostname !== 'chatgpt.com' || !isChatSurface()) return;
-    const editor = promptEditorFromPasteTarget(event.target);
-    if (!editor || !event.clipboardData) return;
+    if (location.protocol !== 'https:' || location.hostname !== 'chatgpt.com') return;
+    if (currentSurface === 'work' || surfaceFromRoute() === 'work') return;
+    if (!event.clipboardData) return;
+
+    const editor = promptEditorFromPasteTarget(event.target) || visiblePromptEditor();
+    if (!editor) return;
 
     const files = clipboardFiles(event.clipboardData);
     if (!files.length) return;
@@ -2109,13 +2130,14 @@
   }
 
   function startEarly() {
+    // Register on window at document-start so ChatGPT cannot consume an image paste first.
+    window.addEventListener('paste', handleClipboardZipPaste, true);
     refreshSurface('document-start', false);
     modelLockController.startEarly();
   }
 
   function start() {
     setupCrossTabSync();
-    document.addEventListener('paste', handleClipboardZipPaste, true);
     refreshSurface('dom-ready', false);
     if (currentSurface === 'unknown') scheduleSurfaceSettle('dom-ready-fallback', 'chat', 180);
     applyAll();
