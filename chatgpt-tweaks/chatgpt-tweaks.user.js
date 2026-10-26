@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ChatGPT 개선 스크립트
 // @namespace    naegyein.local
-// @version      0.18.2
+// @version      0.18.3
 // @description  ChatGPT Chat 전용 UI 개선: 대화 폭, 안전 모델 고정, 링크 보완, 클립보드 이미지·파일 ZIP 첨부. Work에서는 비활성화됩니다.
 // @homepageURL  https://github.com/NAEGYEIN/Personal-Scripts
 // @supportURL   https://github.com/NAEGYEIN/Personal-Scripts/issues
@@ -9,6 +9,7 @@
 // @downloadURL  https://raw.githubusercontent.com/NAEGYEIN/Personal-Scripts/main/chatgpt-tweaks/chatgpt-tweaks.user.js
 // @match        https://chatgpt.com/*
 // @run-at       document-start
+// @sandbox      raw
 // @grant        GM_getValue
 // @grant        GM_setValue
 // @grant        GM_addValueChangeListener
@@ -22,7 +23,7 @@
 
   // Keep existing CSS and setting keys compatible with in-place upgrades.
   const APP = 'cgpui';
-  const VERSION = '0.18.2';
+  const VERSION = '0.18.3';
   const STORE_KEYS = {
     settings: 'cgpui.settings.v1',
     bindings: 'cgpui.bindings.v1',
@@ -73,7 +74,7 @@
   // ChatGPT Conversation Exporter (MIT) uses the real page window for its
   // capture-phase paste listener when GM_* grants put the userscript in a
   // sandbox. Keep this listener in the page realm as well.
-  const pageWindow = typeof unsafeWindow !== 'undefined' ? unsafeWindow : window;
+  const pageWindow = window;
   pageWindow.addEventListener('paste', handleClipboardZipPaste, true);
 
   function clone(v) { return JSON.parse(JSON.stringify(v)); }
@@ -629,8 +630,6 @@
 
   async function handleClipboardZipPaste(event) {
     if (location.protocol !== 'https:' || location.hostname !== 'chatgpt.com') return;
-    if (surfaceFromRoute() === 'work' || currentSurface === 'work') return;
-
     const clip = event.clipboardData;
     if (!clip) return;
 
