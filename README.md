@@ -21,12 +21,8 @@
 ## 배포 구조
 
 - 저장소: `NAEGYEIN/Personal-Scripts`
-- ChatGPT Tweaks canonical 경로: `chatgpt-tweaks/`
-- Instagram 보존 경로: `instagram-tweaks/`
-- DCInside Optimizer 경로: `DCInside-Optimizer/`
+- ChatGPT Tweaks: `chatgpt-tweaks/`
+- Instagram Tweaks: `instagram-tweaks/`
+- DCInside Optimizer: `DCInside-Optimizer/`
 
-## ChatGPT Tweaks 호환 파일
-
-루트의 `chatgpt-tweaks.user.js`, `chatgpt-tweaks.meta.js`는 기존 Tampermonkey 설치가 이전 저장소/루트 배포 경로에서 새 canonical 경로로 이동할 수 있도록 유지하는 **마이그레이션 호환 파일**이다.
-
-v0.16.3부터 실제 `@updateURL` / `@downloadURL`은 `NAEGYEIN/Personal-Scripts/main/chatgpt-tweaks/...`를 사용한다.
+각 프로젝트의 `.user.js`와 `.meta.js`는 해당 프로젝트 폴더 안에서 관리한다.
