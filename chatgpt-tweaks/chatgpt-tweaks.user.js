@@ -298,13 +298,15 @@
     let host = el.parentElement;
     for (let depth = 0; host && depth < 4; depth++, host = host.parentElement) {
       const r = host.getBoundingClientRect?.();
-      if (r && (r.width > Math.max(900, innerWidth * 0.8) || r.height > 320)) break;
-      let hasChat = false, hasWork = false;
+      if (r && (r.width > 560 || r.height > 220)) break;
+      let hasChat = false, hasWork = false, labeledControls = 0;
       for (const control of host.querySelectorAll?.(SURFACE_CONTROL_SELECTOR) || []) {
         const surface = surfaceFromControl(control);
+        if (!surface) continue;
+        labeledControls++;
         if (surface === 'chat') hasChat = true;
         else if (surface === 'work') hasWork = true;
-        if (hasChat && hasWork) return true;
+        if (hasChat && hasWork && labeledControls <= 6) return true;
       }
     }
     return false;
@@ -1394,7 +1396,7 @@
     if (!el || !visible(el) || isOwnedNode(el) || el.closest('#thread,#thread-bottom-container')) return false;
     if (!projectHrefForTarget(el)) return false;
     const blob = semanticBlob(el);
-    return /(?:대화\s*(?:시작|시작하기|만들기)|start\s+(?:a\s+)?chat|new\s+chat|create.*chat|project.*chat|チャットを開始)/i.test(blob);
+    return /(?:대화\s*(?:시작|시작하기|만들기|추가)|새\s*(?:대화|채팅)|프로젝트.*(?:대화|채팅)|start\s+(?:a\s+)?chat|new\s+chat|create.*chat|project.*chat|チャットを開始)/i.test(blob);
   }
 
   function findProjectChatTargets() {
