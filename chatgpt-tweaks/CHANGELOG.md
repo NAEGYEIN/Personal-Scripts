@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.18.1 — 2026-10-27
+
+- 이미지 붙여넣기가 ChatGPT 기본 처리로 그대로 통과한 v0.18.0 실기 FAIL 반영.
+- paste 리스너를 DOMContentLoaded 이후 document capture에서 document-start의 window capture로 이동해 ChatGPT 기본 붙여넣기 처리보다 먼저 가로채도록 변경.
+- event target이 composer로 직접 잡히지 않는 경우 activeElement, 현재 selection, 단일 visible composer 순서로 실제 입력창을 복구 탐지.
+- currentSurface가 일시적으로 unknown이어도 정상 Chat route의 composer 붙여넣기는 처리하고, 명시적 Work surface/route만 차단.
+- 일반 텍스트 붙여넣기와 다른 사이트 비개입 원칙 유지.
+
 ## 0.18.0 — 2026-10-27
 
 - Chat 입력창의 붙여넣기 이벤트에서 클립보드 이미지·파일을 감지해 디스크 저장 없이 메모리에서 ZIP으로 포장.
