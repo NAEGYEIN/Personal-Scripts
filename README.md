@@ -6,7 +6,7 @@
 
 | 프로젝트 | 상태 | 설명 |
 | --- | --- | --- |
-| [chatgpt-tweaks](./chatgpt-tweaks/) | Active | ChatGPT 웹 UI 개선 스크립트. 현재 v0.16.4. |
+| [chatgpt-tweaks](./chatgpt-tweaks/) | Active | ChatGPT Chat 전용 웹 UI 개선 스크립트. 현재 v0.17.0. |
 | [instagram-tweaks](./instagram-tweaks/) | Archived / FAIL | Instagram 웹 보조 스크립트. v1.1.2 정리본 · 기존 실사용 실패 후 개발 종료. 소스 보존용이며 사용 권장하지 않음. |
 | [DCInside-tweaks](./DCInside-tweaks/) | Current | DCInside 레이아웃 보정·클릭 방해 제거·갤러리 즐겨찾기·이미지 댓글 숨김. 현재 v1.3.3. |
 
