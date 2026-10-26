@@ -1,10 +1,14 @@
 // ==UserScript==
-// @name         Instagram Web Plus - Controls & Diagnostics
-// @name:ko      인스타그램 웹 플러스 - 영상 제어 및 진단
+// @name         Instagram Tweaks - Controls & Diagnostics
+// @name:ko      인스타그램 트윅 - 영상 제어 및 진단
 // @namespace    https://local.userscripts.invalid/instagram-web-plus
-// @version      1.1.0
+// @version      1.1.1
 // @description  User-controlled video playback, offscreen pause, video controls, remembered media, no loop, saved shortcut, inline copy button and privacy-preserving diagnostics.
 // @description:ko 자동재생 차단, 화면 밖 정지, 영상 컨트롤, 음량·속도 기억, 반복 해제, 컬렉션 바로가기, 게시물 링크 복사 및 진단.
+// @homepageURL  https://github.com/NAEGYEIN/Personal-Scripts/tree/main/instagram-tweaks
+// @supportURL   https://github.com/NAEGYEIN/Personal-Scripts/issues
+// @updateURL    https://raw.githubusercontent.com/NAEGYEIN/Personal-Scripts/main/instagram-tweaks/instagram-tweaks.meta.js
+// @downloadURL  https://raw.githubusercontent.com/NAEGYEIN/Personal-Scripts/main/instagram-tweaks/instagram-tweaks.user.js
 // @match        https://www.instagram.com/*
 // @match        https://instagram.com/*
 // @run-at       document-start
@@ -16,7 +20,7 @@
   const GUARD = '__IG_WEB_PLUS_RUNNING__';
   if (window[GUARD]) return;
   Object.defineProperty(window, GUARD, { value: true, configurable: true });
-  const VERSION = '1.1.0';
+  const VERSION = '1.1.1';
   const STORE = 'ig-web-plus:v1:settings'; // preserve v1 preferences
   const MEDIA_STORE = 'ig-web-plus:v1:media';
   const FEATURES = {
@@ -73,6 +77,8 @@
   const videos = new Set(), videoStates = new WeakMap();
   const postButtons = new Map();
   let originalPlay = null;
+  const PROFILE_PATH_PATTERN = /^\/([A-Za-z0-9._]{1,30})\/?$/;
+  const RESERVED_PROFILE_PATTERN = /^(explore|reels?|direct|p|stories|accounts|saved|about|privacy|legal|notifications|developer|web|api|threads)$/i;
 
   function isVideo(el) { return el instanceof HTMLVideoElement; }
   function partVisible(v) {
@@ -92,7 +98,7 @@
     if (!s) {
       s = { originalControls: v.controls, originalLoop: v.loop, originalAutoplay: v.autoplay,
         manualUntil: 0, mediaGestureUntil: 0, lastPlayAt: -Infinity, authorizedPlayback: false, requireManualResume: false, justSet: null, lastRestore: 0,
-        originalClean: [], videoObserver: null, initialized: false };
+        originalClean: [] };
       videoStates.set(v, s);
     }
     return s;
@@ -209,7 +215,6 @@
     if (!isVideo(v) || videos.has(v)) return;
     videos.add(v); inc('videos_found');
     const s = stateFor(v);
-    s.initialized = true;
     enforceAttrs(v);
     applyMedia(v);
     const onPlay = () => { s.lastPlayAt = tick(); enforceAttrs(v); enforcePlayback(v, 'play'); updateBar(); };
@@ -224,7 +229,6 @@
     for (const [event, fn] of Object.entries(listeners)) v.addEventListener(event, fn);
     const attrObserver = new MutationObserver(() => enforceAttrs(v));
     attrObserver.observe(v, { attributes: true, attributeFilter: ['loop', 'autoplay', 'controls'] });
-    s.videoObserver = attrObserver;
     s.originalClean.push(() => { attrObserver.disconnect(); for (const [event, fn] of Object.entries(listeners)) v.removeEventListener(event, fn); });
     intersect?.observe(v);
     enforcePlayback(v, 'registered');
@@ -274,16 +278,14 @@
 
   function findProfile() {
     // Only trust a username URL from an actual profile-navigation link, never feed authors.
-    const links = [...document.querySelectorAll('a[href]')];
     const options = [];
-    for (const a of links) {
+    for (const a of document.querySelectorAll('a[href]')) {
       let url;
       try { url = new URL(a.getAttribute('href'), location.origin); } catch (_) { continue; }
       if (url.hostname !== location.hostname) continue;
-      const found = url.pathname.match(/^\/([A-Za-z0-9._]{1,30})\/?$/);
+      const found = url.pathname.match(PROFILE_PATH_PATTERN);
       if (!found) continue;
-      const reserved = /^(explore|reels?|direct|p|stories|accounts|saved|about|privacy|legal|notifications|developer|web|api|threads)$/i;
-      if (reserved.test(found[1])) continue;
+      if (RESERVED_PROFILE_PATTERN.test(found[1])) continue;
       const text = [a.getAttribute('aria-label') || '', a.getAttribute('title') || '', a.textContent || ''].join(' ').trim();
       const inNav = !!a.closest('nav, aside, [role="navigation"]');
       const explicit = /(^|\s)(프로필|profile|내 프로필|my profile)(\s|$)/i.test(text);
@@ -307,14 +309,14 @@
     return anchor;
   }
   function removeRepeatedIds(element) { element.removeAttribute('id'); element.querySelectorAll('[id]').forEach(el => el.removeAttribute('id')); }
-  function navClone(row, originalAnchor, type) {
+  function navClone(row, type) {
     const item = row.cloneNode(true);
     removeRepeatedIds(item);
     const link = item.matches('a') ? item : item.querySelector('a[href]');
     if (!link) return null;
     link.removeAttribute('target'); link.removeAttribute('download');
     link.setAttribute('aria-label', type === 'saved' ? '컬렉션' : 'IG+ 설정');
-    link.setAttribute('title', type === 'saved' ? '저장된 게시물 및 컬렉션' : 'Instagram Web Plus 설정');
+    link.setAttribute('title', type === 'saved' ? '저장된 게시물 및 컬렉션' : 'Instagram Tweaks 설정');
     link.dataset.igpNavigation = type;
     link.setAttribute('href', type === 'saved' ? `/${encodeURIComponent(currentProfile)}/saved/` : '#igp-settings');
     // Preserve the existing DOM structure/CSS classes but replace its visible content.
@@ -333,7 +335,7 @@
     // Avoid scanning the entire feed for a profile link on every Instagram DOM update.
     if (navTarget?.isConnected && navSettings?.item.isConnected &&
         (!settings.savedShortcut || navSaved?.item.isConnected)) {
-      const match = (navTarget.getAttribute('href') || '').match(/^\/([A-Za-z0-9._]{1,30})\/?$/);
+      const match = (navTarget.getAttribute('href') || '').match(PROFILE_PATH_PATTERN);
       if (match && match[1] === currentProfile) return;
     }
     const profile = findProfile();
@@ -346,8 +348,8 @@
     const row = findNavRow(profile.anchor);
     const parent = row.parentElement;
     if (!parent) return;
-    const saved = settings.savedShortcut ? navClone(row, profile.anchor, 'saved') : null;
-    const settingsLink = navClone(row, profile.anchor, 'settings');
+    const saved = settings.savedShortcut ? navClone(row, 'saved') : null;
+    const settingsLink = navClone(row, 'settings');
     if ((settings.savedShortcut && !saved) || !settingsLink) { inc('nav_clone_failed'); return; }
     // Place saved before profile, settings after profile; native nav styling follows layout.
     if (saved) parent.insertBefore(saved.item, row);
@@ -444,7 +446,7 @@
     root.style.setProperty('all', 'initial', 'important');
     shadow = root.attachShadow({ mode: 'open' });
     shadow.innerHTML = `<style>${CSS}</style>
-      <div class="panel" id="igp-panel" hidden><div class="top"><h2>Instagram Web Plus <small>v${VERSION}</small></h2><button type="button" id="close" aria-label="닫기">${ico('close', 20)}</button></div><div class="fields" id="fields"></div><h3>상태 및 진단</h3><div class="notes" id="status"></div><pre id="logs"></pre><div class="actions"><button id="self-check">자체 점검</button><button id="export">${ico('download', 15)} 진단 JSON</button><button id="reset">설정 초기화</button></div><p class="notes">진단 데이터는 외부로 전송하지 않습니다. 영상·사용자명·게시물 주소는 기록하지 않습니다. 자동재생 차단은 영상 다운로드까지 막지는 않습니다.</p></div>
+      <div class="panel" id="igp-panel" hidden><div class="top"><h2>Instagram Tweaks <small>v${VERSION}</small></h2><button type="button" id="close" aria-label="닫기">${ico('close', 20)}</button></div><div class="fields" id="fields"></div><h3>상태 및 진단</h3><div class="notes" id="status"></div><pre id="logs"></pre><div class="actions"><button id="self-check">자체 점검</button><button id="export">${ico('download', 15)} 진단 JSON</button><button id="reset">설정 초기화</button></div><p class="notes">진단 데이터는 외부로 전송하지 않습니다. 영상·사용자명·게시물 주소는 기록하지 않습니다. 자동재생 차단은 영상 다운로드까지 막지는 않습니다.</p></div>
       <div id="bar" class="bar" hidden><button id="play" title="수동 재생/정지">${ico('play', 17)}</button><input id="seek" class="seek" type="range" min="0" max="1000" value="0" aria-label="재생 위치"><span id="time" class="time">--:--</span><input id="volume" class="volume" type="range" min="0" max="1" step=".05" aria-label="음량"><select id="rate" aria-label="배속"><option value="0.5">0.5×</option><option value="0.75">0.75×</option><option value="1">1×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option><option value="1.75">1.75×</option><option value="2">2×</option></select></div>`;
     document.body.appendChild(root);
     panel = shadow.querySelector('#igp-panel'); bar = shadow.querySelector('#bar');
@@ -510,7 +512,9 @@
     shadow.querySelector('#time').textContent = `${time(v.currentTime)}/${time(v.duration)}`;
     shadow.querySelector('#volume').value = String(v.muted ? 0 : v.volume);
     const speed = shadow.querySelector('#rate');
-    if ([...speed.options].some(opt => +opt.value === v.playbackRate)) speed.value = String(v.playbackRate);
+    for (const option of speed.options) {
+      if (+option.value === v.playbackRate) { speed.value = String(v.playbackRate); break; }
+    }
   }
   function locateVideo() {
     if (!bar || !settings.videoControls || busyBar || panelVisible) return;
@@ -542,15 +546,16 @@
       'removed recommendation filter': !Object.hasOwn(settings, 'hideSuggested'),
       'saved video preference': media.volume === null || (media.volume >= 0 && media.volume <= 1)
     };
+    const total = Object.keys(checks).length;
     const passed = Object.values(checks).filter(Boolean).length;
-    inc('self_checks'); log('self_test', `${passed}/${Object.keys(checks).length}`, passed === Object.keys(checks).length ? 'info' : 'warn');
-    lastSelfCheck = { at: new Date().toISOString(), checks, passed, total: Object.keys(checks).length };
+    inc('self_checks'); log('self_test', `${passed}/${total}`, passed === total ? 'info' : 'warn');
+    lastSelfCheck = { at: new Date().toISOString(), checks, passed, total };
     return lastSelfCheck;
   }
   let lastSelfCheck = null;
   function exportDiagnostic() {
     safe('export', () => {
-      const data = { product: 'Instagram Web Plus', version: VERSION, exportedAt: new Date().toISOString(),
+      const data = { product: 'Instagram Tweaks', version: VERSION, exportedAt: new Date().toISOString(),
         durationSeconds: Math.round((Date.now() - start)/1000), settings: { ...settings },
         mediaPresent: { volume: media.volume !== null, muted: media.muted !== null, rate: media.rate !== null },
         counts: { ...counts }, videosTracked: videos.size, copyButtons: postButtons.size,
@@ -559,7 +564,7 @@
         events: [...messages], privacy: 'No user IDs, URLs, media URLs, captions or content logged. Local download only.' };
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob); const a = document.createElement('a');
-      a.href = url; a.download = `ig-web-plus-v1.1-diagnostics-${new Date().toISOString().slice(0,10)}.json`;
+      a.href = url; a.download = `instagram-tweaks-v${VERSION}-diagnostics-${new Date().toISOString().slice(0,10)}.json`;
       document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1500);
       inc('diagnostic_exports');
     });
@@ -600,6 +605,7 @@
   }
   function scanAll() {
     scanScheduled = false;
+    const now = tick();
     const changedArticles = new Set();
     for (const node of mutationCandidates) {
       if (node.matches?.('video')) registerVideo(node);
@@ -610,17 +616,17 @@
       for (const a of node.querySelectorAll?.('article') || []) changedArticles.add(a);
     }
     mutationCandidates.clear();
-    if (tick() - lastScan > 2500) {
+    if (now - lastScan > 2500) {
       for (const v of document.querySelectorAll('video')) registerVideo(v);
-      lastScan = tick();
+      lastScan = now;
     }
     cleanDisconnected();
     if (location.href !== currentHref) { currentHref = location.href; inc('route_changes'); log('navigation'); }
-    if (tick() - lastNavUpdate > 600 || !navSettings?.item.isConnected || (settings.savedShortcut && !navSaved?.item.isConnected)) {
-      ensureNav(); lastNavUpdate = tick();
+    if (now - lastNavUpdate > 600 || !navSettings?.item.isConnected || (settings.savedShortcut && !navSaved?.item.isConnected)) {
+      ensureNav(); lastNavUpdate = now;
     }
     if (settings.copyPostLink) for (const a of changedArticles) addCopy(a);
-    if (tick() - lastPostsScan > 2200) { scanPosts(); lastPostsScan = tick(); }
+    if (now - lastPostsScan > 2200) { scanPosts(); lastPostsScan = now; }
     pauseOffscreen();
     inc('dom_scans');
   }
