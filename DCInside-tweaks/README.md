@@ -1,6 +1,6 @@
 # DCInside Tweaks
 
-현재 기준본: **v1.3.2**
+현재 기준본: **v1.3.3**
 
 DCInside용 Tampermonkey userscript.
 
