@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.18.2 — 2026-10-27
+
+- v0.18.0/0.18.1의 자체 paste/composer/file-input 탐지 구현을 폐기하고 공개 MIT 구현을 기준으로 재작성.
+- `@grant unsafeWindow`를 추가하고 `Soluna-Angelito/chatgpt-conversation-exporter`와 동일하게 실제 page window에 capture-phase paste listener를 document-start에서 즉시 등록.
+- composer 탐지를 해당 프로젝트의 `composedPath()` + `#prompt-textarea.ProseMirror` 패턴으로 교체.
+- 업로드는 `skranz/chatgpt_clipboard`의 검증 패턴을 따라 `#upload-files` 또는 `form[data-type="unified-composer"] input[type="file"]`에 `DataTransfer.files`를 직접 주입하고 `input`/`change` 이벤트를 발생.
+- ZIP 생성 바이트 로직은 유지하되 `File`/`Blob`/`DataTransfer`/`Event`를 page realm 생성자로 사용.
+- 일반 문자열 텍스트 붙여넣기, Work, `chatgpt.com` 외 사이트에는 개입하지 않음.
+- 외부 구현 저작권·MIT 고지를 `THIRD-PARTY.md`에 추가.
 ## 0.18.1 — 2026-10-27
 
 - 이미지 붙여넣기가 ChatGPT 기본 처리로 그대로 통과한 v0.18.0 실기 FAIL 반영.

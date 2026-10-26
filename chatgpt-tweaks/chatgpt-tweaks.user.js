@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ChatGPT 개선 스크립트
 // @namespace    naegyein.local
-// @version      0.18.1
+// @version      0.18.2
 // @description  ChatGPT Chat 전용 UI 개선: 대화 폭, 안전 모델 고정, 링크 보완, 클립보드 이미지·파일 ZIP 첨부. Work에서는 비활성화됩니다.
 // @homepageURL  https://github.com/NAEGYEIN/Personal-Scripts
 // @supportURL   https://github.com/NAEGYEIN/Personal-Scripts/issues
@@ -13,6 +13,7 @@
 // @grant        GM_setValue
 // @grant        GM_addValueChangeListener
 // @grant        GM_registerMenuCommand
+// @grant        unsafeWindow
 // @noframes
 // ==/UserScript==
 
@@ -21,7 +22,7 @@
 
   // Keep existing CSS and setting keys compatible with in-place upgrades.
   const APP = 'cgpui';
-  const VERSION = '0.18.1';
+  const VERSION = '0.18.2';
   const STORE_KEYS = {
     settings: 'cgpui.settings.v1',
     bindings: 'cgpui.bindings.v1',
@@ -68,6 +69,12 @@
   const diagMenus = Object.create(null);
   let currentSurface = 'unknown';
   let surfaceSettleTimer = 0;
+
+  // ChatGPT Conversation Exporter (MIT) uses the real page window for its
+  // capture-phase paste listener when GM_* grants put the userscript in a
+  // sandbox. Keep this listener in the page realm as well.
+  const pageWindow = typeof unsafeWindow !== 'undefined' ? unsafeWindow : window;
+  pageWindow.addEventListener('paste', handleClipboardZipPaste, true);
 
   function clone(v) { return JSON.parse(JSON.stringify(v)); }
 
@@ -380,14 +387,23 @@
 
   // Clipboard file/image paste -> in-memory ZIP attachment.
   // Plain text copied from a page stays a normal paste; actual .txt files are ZIP-packed like other files.
+  //
+  // Proven patterns adapted from MIT-licensed projects:
+  // - Soluna-Angelito/chatgpt-conversation-exporter: page-window capture listener,
+  //   composedPath-based ProseMirror composer detection.
+  // - skranz/chatgpt_clipboard: direct unified-composer file-input injection
+  //   with DataTransfer + change event.
+  // Full notices: chatgpt-tweaks/THIRD-PARTY.md
   const CLIPBOARD_ZIP_MAX_BYTES = 500 * 1024 * 1024;
-  const PROMPT_PASTE_SELECTOR = [
-    '#prompt-textarea',
-    '[data-testid="prompt-textarea"]',
-    '[data-testid="composer-input"]',
-    'form[data-type="unified-composer"] textarea',
-    'form[data-type="unified-composer"] [contenteditable="true"]',
-  ].join(',');
+  const CLIPBOARD_COMPOSER_SELECTORS = [
+    '#prompt-textarea.ProseMirror[contenteditable="true"]',
+    '#prompt-textarea[contenteditable="true"]',
+    'form[data-type="unified-composer"] div.ProseMirror[contenteditable="true"]',
+  ];
+  const CLIPBOARD_UPLOAD_SELECTORS = [
+    '#upload-files',
+    'form[data-type="unified-composer"] input[type="file"]',
+  ];
   const MIME_EXTENSION = {
     'image/png': '.png',
     'image/jpeg': '.jpg',
@@ -407,27 +423,42 @@
     return table;
   })();
 
-  function promptEditorFromPasteTarget(node) {
-    const el = node?.nodeType === 1 ? node : node?.parentElement;
-    return el?.closest?.(PROMPT_PASTE_SELECTOR) || null;
+  function matchClipboardComposer(node) {
+    if (!node || node.nodeType !== 1 || typeof node.matches !== 'function') return null;
+    for (const selector of CLIPBOARD_COMPOSER_SELECTORS) {
+      try { if (node.matches(selector)) return node; } catch {}
+    }
+    return null;
   }
 
-  function visiblePromptEditor() {
-    const active = promptEditorFromPasteTarget(document.activeElement);
-    if (active && visible(active)) return active;
+  function findClipboardComposer(event) {
+    let path = [];
+    try { path = typeof event.composedPath === 'function' ? event.composedPath() : []; } catch {}
+    if (!path.length && event.target) path = [event.target];
 
-    const selectionNode = document.getSelection?.()?.anchorNode || null;
-    const selected = promptEditorFromPasteTarget(selectionNode);
-    if (selected && visible(selected)) return selected;
+    for (const node of path) {
+      if (!node || node.nodeType !== 1) continue;
+      const tag = node.tagName;
+      if (tag === 'TEXTAREA' || tag === 'INPUT') return null;
+      if (tag === 'BODY' || tag === 'HTML') break;
+      const hit = matchClipboardComposer(node);
+      if (hit) return hit;
+    }
 
-    const candidates = [...document.querySelectorAll(PROMPT_PASTE_SELECTOR)]
-      .filter(el => visible(el) && !isOwnedNode(el));
-    if (candidates.length === 1) return candidates[0];
-
-    return candidates.find(el => {
-      const root = composerRootFor(el);
-      return root?.contains?.(document.activeElement);
-    }) || null;
+    const active = document.activeElement;
+    if (active && active.tagName !== 'TEXTAREA' && active.tagName !== 'INPUT') {
+      const direct = matchClipboardComposer(active);
+      if (direct) return direct;
+      if (typeof active.closest === 'function') {
+        for (const selector of CLIPBOARD_COMPOSER_SELECTORS) {
+          try {
+            const hit = active.closest(selector);
+            if (hit) return hit;
+          } catch {}
+        }
+      }
+    }
+    return null;
   }
 
   function clipboardFiles(data) {
@@ -441,11 +472,13 @@
       seen.add(key);
       files.push(file);
     };
-    for (const item of data.items || []) {
-      if (item.kind !== 'file') continue;
-      try { add(item.getAsFile()); } catch {}
-    }
-    for (const file of data.files || []) add(file);
+    try {
+      for (const item of data.items || []) {
+        if (item.kind !== 'file') continue;
+        try { add(item.getAsFile()); } catch {}
+      }
+    } catch {}
+    try { for (const file of data.files || []) add(file); } catch {}
     return files;
   }
 
@@ -566,82 +599,53 @@
       const pad = n => String(n).padStart(2, '0');
       return d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate()) + '-' + pad(d.getHours()) + pad(d.getMinutes()) + pad(d.getSeconds());
     })();
-    const blob = new Blob([...localParts, ...centralParts, end], {type: 'application/zip'});
-    return new File([blob], 'clipboard-' + stamp + '.zip', {type: 'application/zip', lastModified: Date.now()});
+
+    const PageBlob = pageWindow.Blob || Blob;
+    const PageFile = pageWindow.File || File;
+    const blob = new PageBlob([...localParts, ...centralParts, end], {type: 'application/zip'});
+    return new PageFile([blob], 'clipboard-' + stamp + '.zip', {type: 'application/zip', lastModified: Date.now()});
   }
 
-  function composerRootFor(editor) {
-    return editor?.closest?.('form,[data-type="unified-composer"],[data-testid*="composer" i]') || editor?.parentElement || document.body;
-  }
-
-  function scoreUploadInput(input, root) {
-    if (!input || input.type !== 'file' || input.disabled || isOwnedNode(input)) return -Infinity;
-    const accept = String(input.accept || '').toLowerCase();
-    if (accept && /application\/json|\.json/.test(accept) && !/(image|pdf|text|doc|sheet|presentation|\*)/.test(accept)) return -Infinity;
-    const meta = [
-      input.id || '', input.name || '', input.getAttribute('data-testid') || '',
-      input.getAttribute('aria-label') || '', input.getAttribute('data-slot') || '',
-    ].join(' ').toLowerCase();
-    let score = 0;
-    if (root?.contains?.(input)) score += 220;
-    if (/(attach|attachment|upload|file|composer|prompt)/.test(meta)) score += 120;
-    if (input.multiple) score += 30;
-    if (!accept || /(image|pdf|text|doc|sheet|presentation|\*)/.test(accept)) score += 25;
-    return score;
-  }
-
-  function findChatUploadInput(editor) {
-    const root = composerRootFor(editor);
-    let best = null;
-    let bestScore = -Infinity;
-    for (const input of document.querySelectorAll('input[type="file"]')) {
-      const score = scoreUploadInput(input, root);
-      if (score > bestScore) { best = input; bestScore = score; }
+  function findChatUploadInput() {
+    for (const selector of CLIPBOARD_UPLOAD_SELECTORS) {
+      const input = document.querySelector(selector);
+      if (input && input.type === 'file' && !input.disabled) return input;
     }
-    return bestScore >= 25 ? best : null;
+    return null;
   }
 
-  function injectFileInput(input, file) {
-    const transfer = new DataTransfer();
+  function injectClipboardZip(input, file) {
+    const PageDataTransfer = pageWindow.DataTransfer || DataTransfer;
+    const PageEvent = pageWindow.Event || Event;
+    const transfer = new PageDataTransfer();
     transfer.items.add(file);
     try { input.value = ''; } catch {}
     input.files = transfer.files;
-    input.dispatchEvent(new Event('input', {bubbles: true, composed: true}));
-    input.dispatchEvent(new Event('change', {bubbles: true, composed: true}));
-    return true;
-  }
 
-  function dispatchFileDrop(editor, file) {
-    const transfer = new DataTransfer();
-    transfer.items.add(file);
-    const target = composerRootFor(editor);
-    for (const type of ['dragenter', 'dragover', 'drop']) {
-      target.dispatchEvent(new DragEvent(type, {bubbles: true, cancelable: true, composed: true, dataTransfer: transfer}));
-    }
-    return true;
+    input.dispatchEvent(new PageEvent('input', {bubbles: true, composed: true}));
+    input.dispatchEvent(new PageEvent('change', {bubbles: true, composed: true}));
+    return input.files?.length === 1 && input.files[0]?.name === file.name;
   }
 
   async function handleClipboardZipPaste(event) {
     if (location.protocol !== 'https:' || location.hostname !== 'chatgpt.com') return;
-    if (currentSurface === 'work' || surfaceFromRoute() === 'work') return;
-    if (!event.clipboardData) return;
+    if (surfaceFromRoute() === 'work' || currentSurface === 'work') return;
 
-    const editor = promptEditorFromPasteTarget(event.target) || visiblePromptEditor();
-    if (!editor) return;
+    const clip = event.clipboardData;
+    if (!clip) return;
 
-    const files = clipboardFiles(event.clipboardData);
+    const files = clipboardFiles(clip);
     if (!files.length) return;
+
+    const composer = findClipboardComposer(event);
+    if (!composer) return;
+
+    const input = findChatUploadInput();
+    if (!input) return;
 
     const totalBytes = files.reduce((sum, file) => sum + (Number(file.size) || 0), 0);
     if (totalBytes > CLIPBOARD_ZIP_MAX_BYTES) {
       toast('클립보드 파일 합계가 500MB를 넘어 ZIP 변환을 건너뜁니다.', 3500);
-      return;
-    }
-
-    const input = findChatUploadInput(editor);
-    const canDrop = typeof DataTransfer === 'function' && typeof DragEvent === 'function';
-    if (!input && !canDrop) {
-      toast('ChatGPT 첨부 입력을 찾지 못해 원래 붙여넣기를 유지합니다.', 3500);
       return;
     }
 
@@ -650,16 +654,19 @@
 
     try {
       const zipFile = await buildClipboardZip(files);
-      const method = input ? (injectFileInput(input, zipFile), 'file-input') : (dispatchFileDrop(editor, zipFile), 'drop');
-      console.info('[ChatGPT 개선 스크립트] clipboard ZIP attachment dispatched', {
-        method, zip: zipFile.name, sourceCount: files.length, sourceBytes: totalBytes,
+      if (!injectClipboardZip(input, zipFile)) throw new Error('file input did not retain the generated ZIP');
+      console.info('[ChatGPT 개선 스크립트] clipboard ZIP injected', {
+        zip: zipFile.name,
+        sourceCount: files.length,
+        sourceBytes: totalBytes,
+        inputId: input.id || null,
       });
+      toast('클립보드 원본을 ZIP 첨부로 변환했습니다.', 2200);
     } catch (error) {
-      console.warn('[ChatGPT 개선 스크립트] clipboard ZIP attachment failed', error);
-      toast('클립보드 ZIP 생성 또는 첨부에 실패했습니다. 콘솔 로그를 확인하세요.', 4000);
+      console.warn('[ChatGPT 개선 스크립트] clipboard ZIP injection failed', error);
+      toast('클립보드 ZIP 첨부에 실패했습니다. 다시 Ctrl+V 하면 기본 붙여넣기가 동작합니다.', 4000);
     }
   }
-
   const EDITOR_SELECTOR = '#prompt-textarea,textarea,input:not([type="button"]):not([type="submit"]):not([type="checkbox"]):not([type="radio"]),[contenteditable="true"],[role="textbox"]';
   const MODEL_POPUP_SELECTOR = '[role="menu"],[role="listbox"],[role="dialog"],[data-radix-popper-content-wrapper],[data-state="open"][data-side],[data-slot*="popover" i],[data-slot*="menu-content" i]';
   const THINKING_LEVEL_RE = /(?:^|\s)(?:auto|instant|medium|high|extra\s*high|자동|빠름|중간|높음)(?:\s|$)|추론\s*(?:수준|레벨)|thinking\s*(?:level|effort)/i;
@@ -2130,8 +2137,6 @@
   }
 
   function startEarly() {
-    // Register on window at document-start so ChatGPT cannot consume an image paste first.
-    window.addEventListener('paste', handleClipboardZipPaste, true);
     refreshSurface('document-start', false);
     modelLockController.startEarly();
   }
