@@ -6,7 +6,7 @@
 
 | 프로젝트 | 상태 | 설명 |
 | --- | --- | --- |
-| [chatgpt-tweaks](./chatgpt-tweaks/) | Active | ChatGPT Chat 전용 웹 UI 개선 스크립트. 현재 v0.17.0. |
+| [chatgpt-tweaks](./chatgpt-tweaks/) | Archived / Superseded | Chrome/Brave 확장 `NAEGYEIN/Personal-Extensions/chatgpt-tweaks`로 이관 완료. userscript는 더 이상 실행 기준본이 아님. |
 | [instagram-tweaks](./instagram-tweaks/) | Archived / FAIL | Instagram 웹 보조 스크립트. v1.1.2 정리본 · 기존 실사용 실패 후 개발 종료. 소스 보존용이며 사용 권장하지 않음. |
 | [DCInside-tweaks](./DCInside-tweaks/) | Current | DCInside 레이아웃 보정·클릭 방해 제거·갤러리 즐겨찾기·이미지 댓글 숨김. 현재 v1.3.3. |
 
@@ -21,7 +21,7 @@
 ## 배포 구조
 
 - 저장소: `NAEGYEIN/Personal-Scripts`
-- ChatGPT Tweaks: `chatgpt-tweaks/`
+- ChatGPT Tweaks: `chatgpt-tweaks/` — legacy archive / no-op tombstone
 - Instagram Tweaks: `instagram-tweaks/`
 - DCInside Tweaks: `DCInside-tweaks/`
 
